@@ -267,8 +267,9 @@
     flex: 1; min-height: 0;
     overflow-y: auto; overflow-x: hidden;
     overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+    padding-bottom: env(safe-area-inset-bottom);
   }
-  .mode { padding-bottom: 26px; }
+  .mode { padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
   .mode.hidden { display: none; }
 
   .panel {
@@ -370,7 +371,23 @@
   .wx-call  { padding: 8px 12px; font-size: 11px; color: var(--amber); border-top: 1px dashed var(--bg-line); text-shadow: 0 0 6px var(--amber); }
 
   /* Bigger KAM map · two view modes · filter only the tile layer so overlays keep true colour */
-  #map { height: clamp(380px, 56vh, 600px); background: var(--bg-3); position: relative; }
+  #map { height: clamp(380px, 56vh, 600px); background: var(--bg-3); position: relative; touch-action: none; }
+  /* Touch shield · stops the map from trapping page scroll on mobile */
+  .map-touch-shield {
+    position: absolute; inset: 0; z-index: 500;
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 5px;
+    background: rgba(4,8,15,0.30);
+    backdrop-filter: blur(1.5px); -webkit-backdrop-filter: blur(1.5px);
+    pointer-events: auto; cursor: pointer;
+    transition: opacity .18s;
+  }
+  .map-touch-shield.released { opacity: 0; pointer-events: none; }
+  .mts-icon { font-size: 26px; color: var(--green); text-shadow: 0 0 12px var(--green); }
+  .mts-label { font-size: 10px; letter-spacing: 3px; color: var(--green); font-weight: 700; text-shadow: 0 0 6px var(--green); }
+  .mts-sub { font-size: 8px; letter-spacing: 1.5px; color: var(--text); opacity: 0.75; }
+  /* When map is not active, the shield ALSO lets vertical page scroll pass through */
+  #map.touch-locked { touch-action: pan-y; }
   #map.mode-sat .leaflet-tile-pane { filter: hue-rotate(80deg) saturate(0.7) brightness(0.62) contrast(1.12); }
   #map.mode-kam .leaflet-tile-pane { filter: none; }
   .leaflet-container { background: var(--bg-3); font-family: 'IBM Plex Mono', monospace; }
@@ -1009,9 +1026,12 @@
     .mode-btn .glyph { font-size: 16px; }
 
     .stage { height: clamp(200px, 28vh, 280px); }
-    .chip { padding: 6px 4px; }
-    .chip-value { font-size: 13px; }
-    .chip-label, .chip-sub { font-size: 7px; letter-spacing: 1px; }
+    .chips { gap: 1px; }
+    .chip { padding: 5px 3px 6px; min-width: 0; }
+    .chip-value { font-size: 12px; line-height: 1.1; }
+    .chip-label, .chip-sub { font-size: 6.5px; letter-spacing: 0.8px; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .mode { padding-bottom: calc(100px + env(safe-area-inset-bottom)); }
+    #map { height: clamp(320px, 50vh, 480px); }
 
     .cad-av { font-size: 11px; }
     .cad-av-eagle, .cad-av-birdie { bottom: 68px; }
@@ -1285,7 +1305,13 @@
         <button id="map-mode-sat" class="active">◉ SAT · GOOGLE EARTH</button>
         <button id="map-mode-kam">◇ KAM · TACTICAL</button>
       </div>
-      <div id="map" class="mode-sat"></div>
+      <div id="map" class="mode-sat touch-locked">
+        <div class="map-touch-shield" id="map-touch-shield">
+          <div class="mts-icon">◉</div>
+          <div class="mts-label">TAP MAP TO NAVIGATE</div>
+          <div class="mts-sub">tap again outside to release · scroll page through map</div>
+        </div>
+      </div>
     </section>
 
     <section class="panel panel-weather">
@@ -2672,6 +2698,33 @@ const initCourse = () => {
       return div;
     };
     K.addTo(map);
+
+    // Map touch-shield · prevent map from trapping page scroll on mobile
+    const $shield = $('map-touch-shield');
+    const $mapEl = $('map');
+    let shieldTimer = null;
+    const releaseShield = () => {
+      if (!$shield) return;
+      $shield.classList.add('released');
+      $mapEl.classList.remove('touch-locked');
+      clearTimeout(shieldTimer);
+      shieldTimer = setTimeout(() => engageShield(), 12000);
+    };
+    const engageShield = () => {
+      if (!$shield) return;
+      $shield.classList.remove('released');
+      $mapEl.classList.add('touch-locked');
+      clearTimeout(shieldTimer);
+    };
+    if ($shield) {
+      $shield.addEventListener('click', (e) => { e.stopPropagation(); releaseShield(); });
+      $shield.addEventListener('touchstart', (e) => { e.stopPropagation(); }, { passive: true });
+      // Re-engage shield when user scrolls the page
+      const $scroll = document.querySelector('.scroll');
+      if ($scroll) $scroll.addEventListener('scroll', () => { if (!$shield.classList.contains('released')) return; engageShield(); }, { passive: true });
+      // Map drag itself resets the shield timer
+      map.on('dragstart zoomstart', () => { clearTimeout(shieldTimer); shieldTimer = setTimeout(() => engageShield(), 12000); });
+    }
   }
   redrawHoleMarkers();
   buildClubGrid('course-clubs');
