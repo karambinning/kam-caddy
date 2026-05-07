@@ -156,6 +156,23 @@
   .achievement-flash.fire { animation: ach 1.4s ease-out; }
   @keyframes ach { 0% { opacity: 0; } 20% { opacity: 1; } 100% { opacity: 0; } }
 
+  /* Data status strip · tells you what's wired in at a glance */
+  .data-stat {
+    flex-shrink: 0;
+    display: flex; gap: 1px;
+    padding: 1px;
+    background: var(--bg-line);
+    font-size: 8px; letter-spacing: 1.5px;
+  }
+  .data-stat .ds {
+    flex: 1; padding: 5px 4px;
+    background: var(--bg-3);
+    color: var(--dim); text-align: center; font-weight: 700;
+  }
+  .data-stat .ds.ok   { color: var(--green); text-shadow: 0 0 4px var(--green); }
+  .data-stat .ds.warn { color: var(--amber); text-shadow: 0 0 4px var(--amber); }
+  .data-stat .ds.miss { color: var(--warn);  }
+
   /* Live data strip · sits BETWEEN mode bar and stage as its own row · stage stays clean */
   .chips {
     flex-shrink: 0;
@@ -1155,6 +1172,14 @@
   <button class="mode-btn"        data-mode="green"><span class="glyph">🎯</span>PUTTING</button>
 </nav>
 
+<div class="data-stat">
+  <span class="ds miss" id="ds-gps">○ GPS</span>
+  <span class="ds miss" id="ds-wx">○ WX</span>
+  <span class="ds miss" id="ds-ai">○ AI</span>
+  <span class="ds miss" id="ds-voice">○ VOICE</span>
+  <span class="ds miss" id="ds-glasses">○ GLASSES</span>
+</div>
+
 <div class="chips">
   <div class="chip">
     <span class="chip-label">HOLE</span>
@@ -1311,7 +1336,7 @@
         <div class="wx-cell"><div class="wx-label">PRESSURE</div><div class="wx-value" id="wx-pres">—</div><div class="wx-sub">hPa</div></div>
         <div class="wx-cell"><div class="wx-label">CLOUDS</div><div class="wx-value" id="wx-cloud">—</div><div class="wx-sub" id="wx-cond">—</div></div>
       </div>
-      <div class="wx-call" id="wx-call">tap ⚙ KEYS · paste OWM key for live conditions</div>
+      <div class="wx-call" id="wx-call">live wind · Open-Meteo (free, no key) · paste an OWM key in ⚙ KEYS to override</div>
     </section>
 
     <section class="panel panel-clubs">
@@ -3161,21 +3186,50 @@ $('hole-prev').addEventListener('click', () => { const cur = state.previewHole |
 $('hole-next').addEventListener('click', () => { const cur = state.previewHole || state.hole?.n || 0; previewHole(cur === 18 ? 1 : cur + 1); });
 
 // Weather
+// WMO weather codes (Open-Meteo standard)
+const _WMO = { 0:'clear',1:'mainly clear',2:'partly cloudy',3:'overcast',45:'fog',48:'icing fog',51:'light drizzle',53:'drizzle',55:'heavy drizzle',56:'freezing drizzle',57:'heavy freezing drizzle',61:'light rain',63:'rain',65:'heavy rain',66:'freezing rain',67:'heavy freezing rain',71:'light snow',73:'snow',75:'heavy snow',77:'snow grains',80:'light showers',81:'showers',82:'heavy showers',85:'light snow showers',86:'snow showers',95:'thunderstorm',96:'thunder + hail',99:'severe thunder + hail' };
+// Open-Meteo · free, no API key, normalised to OWM shape so the rest of the code is unchanged
+const fetchOpenMeteo = async (lat, lon) => {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m,apparent_temperature,relative_humidity_2m,pressure_msl,cloud_cover,weather_code&wind_speed_unit=ms`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('open-meteo HTTP ' + r.status);
+  const j = await r.json();
+  const c = j.current || {};
+  return {
+    name: 'Open-Meteo',
+    main: {
+      temp: c.temperature_2m,
+      feels_like: c.apparent_temperature,
+      humidity: c.relative_humidity_2m,
+      pressure: c.pressure_msl,
+    },
+    wind: { speed: c.wind_speed_10m, deg: c.wind_direction_10m, gust: c.wind_gusts_10m },
+    clouds: { all: c.cloud_cover },
+    weather: [{ description: _WMO[c.weather_code] || 'unknown' }],
+    _source: 'open-meteo',
+  };
+};
+
 const fetchWindThenEagle = async () => {
   if (!state.pos || !state.hole) return;
   if (Date.now() - state.lastWindMs < 120000 && state.wind) { deliverEagle(); return; }
   const owm = localStorage.getItem('caddy.owm.key');
-  if (!owm) { state.wind = { speedMph: null, deg: null }; deliverEagle(); return; }
   try {
-    const r = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${state.pos.lat}&lon=${state.pos.lon}&appid=${owm}&units=metric`);
-    const j = await r.json();
+    let j;
+    if (owm) {
+      const r = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${state.pos.lat}&lon=${state.pos.lon}&appid=${owm}&units=metric`);
+      if (r.ok) { j = await r.json(); j._source = 'openweather'; }
+      else { feedAdd('wx', 'OWM HTTP ' + r.status + ' · falling back to Open-Meteo'); j = await fetchOpenMeteo(state.pos.lat, state.pos.lon); }
+    } else {
+      j = await fetchOpenMeteo(state.pos.lat, state.pos.lon);
+    }
     state.owmRaw = j;
     const ms = j?.wind?.speed || 0, gust = j?.wind?.gust || 0;
     state.wind = { speedMph: ms * 2.237, deg: j?.wind?.deg || 0, gustMph: gust * 2.237 };
     state.lastWindMs = Date.now();
     $('chip-wind').innerHTML       = `${Math.round(state.wind.speedMph)}<span style="font-size:10px;">mph</span>`;
     $('chip-wind-sub').textContent = compassFromDeg(state.wind.deg);
-    $('wx-sub').textContent  = `${j?.name || 'fix'} · ${fmtTime(Date.now())}`;
+    $('wx-sub').textContent  = `${j?._source || j?.name || 'fix'} · ${fmtTime(Date.now())}`;
     $('wx-wind').textContent = Math.round(state.wind.speedMph);
     $('wx-wind-sub').textContent = `mph · ${compassFromDeg(state.wind.deg)} ${state.wind.deg}°`;
     $('wx-gust').textContent = state.wind.gustMph ? Math.round(state.wind.gustMph) : '—';
@@ -3612,7 +3666,7 @@ $('btn-putt-make').addEventListener('click', () => { state.greenPutts++; $('p-pu
 $('btn-putt-miss').addEventListener('click', () => { state.greenPutts++; $('p-putts').textContent = state.greenPutts; speakBirdieRaw('Read the line, not just the speed.'); persist(); });
 
 // Glasses + REC + LIVE chip
-$('btn-test-audio').addEventListener('click', () => { speakEagleRaw('Audio routing test. If you hear this through your Ray-Ban speakers, the glasses are paired and routing works.'); $('glasses-status').textContent = '◐ AUDIO TESTED'; });
+$('btn-test-audio').addEventListener('click', () => { speakEagleRaw('Audio routing test. If you hear this through your Ray-Ban speakers, the glasses are paired and routing works.'); $('glasses-status').textContent = '◐ AUDIO TESTED'; localStorage.setItem('caddy.glasses.tested', '1'); });
 $('btn-bt-help').addEventListener('click', () => { alert('Pair Meta Ray-Bans:\n\n1. iOS Settings → Bluetooth\n2. Glasses charged + on (Meta View app open if first time)\n3. Tap "Ray-Ban Meta" when listed\n4. Confirm pairing\n5. Return → tap TEST AUDIO\n\nIf audio plays through phone speaker instead:\n· Pull down Control Centre while audio plays → tap the AirPlay/audio icon → pick the glasses\n· Or toggle BT off/on once paired'); });
 
 // ── Glasses mic test · level meter ────────────────────────────
@@ -3785,6 +3839,23 @@ $('btn-reset').addEventListener('click', () => {
   if (keep.o) localStorage.setItem('caddy.owm.key', keep.o);
   releaseWakeLock(); location.reload();
 });
+
+// ── Live data status row ─────────────────────────────────────
+const renderDataStatus = () => {
+  const setStat = (id, text, cls) => {
+    const el = $(id); if (!el) return;
+    el.textContent = text;
+    el.className = 'ds ' + cls;
+  };
+  setStat('ds-gps', state.pos ? '✓ GPS' : '○ GPS', state.pos ? 'ok' : 'miss');
+  setStat('ds-wx',  state.wind && state.wind.speedMph != null ? '✓ WX' : '○ WX', state.wind && state.wind.speedMph != null ? 'ok' : 'miss');
+  setStat('ds-ai',  localStorage.getItem('caddy.anthropic.key') ? '✓ AI' : '○ AI', localStorage.getItem('caddy.anthropic.key') ? 'ok' : 'miss');
+  setStat('ds-voice', localStorage.getItem('caddy.elevenlabs.key') ? '✓ VOICE' : '◐ TTS', localStorage.getItem('caddy.elevenlabs.key') ? 'ok' : 'warn');
+  // Glasses status — no real way to detect BT audio routing from web; show "TESTED" once user has hit the test button
+  const tested = localStorage.getItem('caddy.glasses.tested') === '1';
+  setStat('ds-glasses', tested ? '✓ GLASSES' : '○ GLASSES', tested ? 'ok' : 'miss');
+};
+setInterval(renderDataStatus, 2500);
 
 // Boot
 setMode(state.mode || 'course');
