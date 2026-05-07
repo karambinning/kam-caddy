@@ -943,6 +943,30 @@
   .diag-result .ok   { color: var(--green); }
   .diag-result .miss { color: var(--warn);  }
 
+  /* Round export modal */
+  .export-modal { border-color: var(--ask); max-width: 460px; }
+  .export-modal h2 { color: var(--ask); text-shadow: 0 0 6px var(--ask); }
+  .export-card-section { margin: 10px 0 6px; text-align: center; }
+  .export-card-section img { width: 100%; height: auto; border: 1px solid var(--bg-line); display: block; box-shadow: 0 0 14px rgba(45,212,191,0.25); }
+  .export-card-hint { font-size: 9px; color: var(--ask); margin-top: 8px; letter-spacing: 1.5px; line-height: 1.5; }
+  .export-card-hint b { color: var(--text); }
+  .export-modal pre {
+    background: var(--bg-3); border: 1px solid var(--bg-line);
+    padding: 10px; font-size: 10px; line-height: 1.5;
+    max-height: 240px; overflow-y: auto;
+    white-space: pre-wrap; word-break: break-word;
+    user-select: text; -webkit-user-select: text;
+    margin-top: 6px;
+    color: var(--text);
+  }
+  .export-modal details { margin-top: 10px; }
+  .export-modal details summary {
+    font-size: 9px; letter-spacing: 2px; color: var(--green);
+    cursor: pointer; padding: 6px 0;
+    list-style: none;
+  }
+  .export-modal details summary::-webkit-details-marker { display: none; }
+
   /* BAG modal */
   .bag-modal { border-color: var(--bag); }
   .bag-modal h2 { color: var(--bag); text-shadow: 0 0 6px var(--bag); }
@@ -1555,6 +1579,26 @@
       <button class="ctl warn" id="key-cancel">CANCEL</button>
       <button class="ctl" id="key-save">SAVE · TEST</button>
     </div>
+  </div>
+</div>
+
+<!-- ROUND EXPORT modal -->
+<div class="modal-bg" id="export-modal">
+  <div class="modal export-modal">
+    <h2>▾ ROUND EXPORT</h2>
+    <div class="export-card-section">
+      <img id="export-card-img" alt="round card">
+      <div class="export-card-hint"><b>long-press</b> the image → <b>Save to Photos</b> (saves to camera roll) · or use SHARE for iOS share sheet</div>
+    </div>
+    <div class="row" style="margin-top:14px;">
+      <button class="ctl ask" id="export-share">↗ SHARE · iOS</button>
+      <button class="ctl" id="export-copy">📋 COPY MD</button>
+    </div>
+    <details>
+      <summary>▸ MARKDOWN PREVIEW · scroll · select to copy manually</summary>
+      <pre id="export-md-preview"></pre>
+    </details>
+    <button class="ctl warn" id="export-close" style="margin-top:12px; width:100%;">CLOSE</button>
   </div>
 </div>
 
@@ -3870,6 +3914,147 @@ const postRoundCoach = async () => {
     return txt;
   } catch (e) { return null; }
 };
+// ── Render Moment Card · 1080×1920 portrait PNG of the round ─────
+const _wrapText = (ctx, text, maxWidth) => {
+  const words = String(text || '').replace(/\s+/g, ' ').split(' ');
+  const lines = []; let line = '';
+  for (const w of words) {
+    const test = line ? line + ' ' + w : w;
+    if (ctx.measureText(test).width > maxWidth) { if (line) lines.push(line); line = w; }
+    else line = test;
+  }
+  if (line) lines.push(line); return lines;
+};
+const renderMomentCard = (coachText) => {
+  const W = 1080, H = 1920;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  // BG + neon vignette
+  ctx.fillStyle = '#070e1c'; ctx.fillRect(0, 0, W, H);
+  const grad = ctx.createRadialGradient(W/2, 600, 100, W/2, 600, 900);
+  grad.addColorStop(0, 'rgba(34,197,94,0.15)'); grad.addColorStop(1, 'rgba(7,14,28,0)');
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+  // Outer KAM border
+  ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 6; ctx.strokeRect(40, 40, W - 80, H - 80);
+  ctx.strokeStyle = 'rgba(34,197,94,0.3)'; ctx.lineWidth = 1; ctx.strokeRect(60, 60, W - 120, H - 120);
+  // Title
+  ctx.fillStyle = '#22c55e';
+  ctx.font = '700 80px "IBM Plex Mono", "SF Mono", Menlo, monospace';
+  ctx.shadowColor = '#22c55e'; ctx.shadowBlur = 30;
+  ctx.fillText('⛳ KAM CADDY', 80, 170);
+  ctx.shadowBlur = 0;
+  // Course + date
+  const date = new Date(state.roundStartTs || Date.now());
+  const dateStr = date.toISOString().slice(0, 10);
+  const courseName = currentCourse()?.name || 'unknown';
+  ctx.fillStyle = '#64748b';
+  ctx.font = '34px "IBM Plex Mono", "SF Mono", Menlo, monospace';
+  ctx.fillText(`${courseName.toUpperCase()} · ${dateStr}`, 80, 230);
+  // Big score
+  const ends = state.holeEnds || [];
+  const totalShots = ends.reduce((a,e) => a + e.shots, 0);
+  const totalPar = ends.reduce((a,e) => a + e.par, 0);
+  const dp = ends.length ? totalShots - totalPar : 0;
+  const dpStr = ends.length ? (dp >= 0 ? '+' + dp : String(dp)) : '—';
+  ctx.fillStyle = '#fbbf24';
+  ctx.font = '700 240px "IBM Plex Mono", "SF Mono", Menlo, monospace';
+  ctx.shadowColor = '#fbbf24'; ctx.shadowBlur = 50;
+  ctx.textAlign = 'center';
+  ctx.fillText(dpStr, W / 2, 530);
+  ctx.shadowBlur = 0;
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#64748b';
+  ctx.font = '36px "IBM Plex Mono", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(`${ends.length}/18 HOLES · ${totalShots} SHOTS · PAR ${totalPar}`, W / 2, 610);
+  ctx.textAlign = 'left';
+  // Scorecard grid · 9 cols × 2 rows
+  ctx.fillStyle = '#22c55e';
+  ctx.font = '700 38px "IBM Plex Mono", monospace';
+  ctx.fillText('SCORECARD', 80, 720);
+  const cellW = 102, cellH = 130, startX = 80, startY = 760;
+  for (let i = 0; i < 18; i++) {
+    const e = ends.find(x => x.n === i + 1);
+    const col = i % 9, row = Math.floor(i / 9);
+    const x = startX + col * cellW, y = startY + row * (cellH + 30);
+    ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, cellW - 6, cellH);
+    ctx.fillStyle = '#64748b';
+    ctx.font = '22px "IBM Plex Mono", monospace';
+    ctx.fillText('H' + (i + 1), x + 8, y + 30);
+    if (e) {
+      ctx.fillStyle = e.diff < 0 ? '#22c55e' : (e.diff > 0 ? '#ef4444' : '#fbbf24');
+      ctx.font = '700 56px "IBM Plex Mono", monospace';
+      ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 10;
+      ctx.fillText(String(e.shots), x + 22, y + 92);
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#64748b';
+      ctx.font = '22px "IBM Plex Mono", monospace';
+      ctx.fillText(`${e.diff >= 0 ? '+' : ''}${e.diff}`, x + 22, y + 120);
+    } else {
+      ctx.fillStyle = '#1e293b';
+      ctx.font = '700 56px "IBM Plex Mono", monospace';
+      ctx.fillText('—', x + 30, y + 92);
+    }
+  }
+  // Eagle's read
+  let yCursor = 1200;
+  if (coachText && coachText.length > 0) {
+    ctx.fillStyle = '#fbbf24';
+    ctx.font = '700 36px "IBM Plex Mono", monospace';
+    ctx.shadowColor = '#fbbf24'; ctx.shadowBlur = 18;
+    ctx.fillText('EAGLE · POST-ROUND READ', 80, yCursor);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#e5e7eb';
+    ctx.font = '28px "IBM Plex Mono", monospace';
+    yCursor += 50;
+    const lines = _wrapText(ctx, coachText.replace(/\n+/g, ' '), W - 160);
+    for (let i = 0; i < Math.min(lines.length, 14); i++) {
+      ctx.fillText(lines[i], 80, yCursor);
+      yCursor += 38;
+    }
+  }
+  // Footer
+  ctx.fillStyle = '#22c55e';
+  ctx.font = '28px "IBM Plex Mono", monospace';
+  ctx.shadowColor = '#22c55e'; ctx.shadowBlur = 14;
+  ctx.fillText('⛳ KAM CADDY · LIVE AI GOLF CADDY', 80, H - 80);
+  ctx.shadowBlur = 0;
+  return canvas.toDataURL('image/png');
+};
+
+// Show export modal · iOS-friendly: image to long-press-save + native share + markdown view
+const showExportModal = (md, cardImgUrl) => {
+  $('export-card-img').src = cardImgUrl;
+  $('export-md-preview').textContent = md;
+  $('export-modal').classList.add('open');
+};
+$('export-close').addEventListener('click', () => $('export-modal').classList.remove('open'));
+$('export-copy').addEventListener('click', async () => {
+  const md = $('export-md-preview').textContent;
+  try { await navigator.clipboard.writeText(md); toast('markdown copied', '#22c55e'); }
+  catch (e) { toast('select the text in the preview to copy manually', '#f59e0b'); }
+});
+$('export-share').addEventListener('click', async () => {
+  if (!navigator.share) { toast('share not supported · use COPY MD', '#f59e0b'); return; }
+  const md = $('export-md-preview').textContent;
+  const cardSrc = $('export-card-img').src;
+  try {
+    const res = await fetch(cardSrc);
+    const blob = await res.blob();
+    const file = new File([blob], `kam-caddy-${Date.now()}.png`, { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      const head = md.split('\n').slice(0, 4).join('\n');
+      await navigator.share({ title: 'KAM CADDY · Round', text: head, files: [file] });
+      return;
+    }
+    await navigator.share({ title: 'KAM CADDY · Round', text: md });
+  } catch (e) {
+    if (e.name !== 'AbortError') toast('share: ' + e.message, '#ef4444');
+  }
+});
+
 $('btn-export').addEventListener('click', async () => {
   toast('exporting · running AI coach…', '#22c55e');
   const coach = await postRoundCoach();
@@ -3877,11 +4062,9 @@ $('btn-export').addEventListener('click', async () => {
   if (coach) {
     md = `# Round · ${currentCourse()?.name || 'unknown'} · ${new Date(state.roundStartTs || Date.now()).toISOString().slice(0, 10)}\n\n## Eagle's post-round read\n\n${coach}\n\n---\n\n` + md.replace(/^# Round[^\n]*\n+/, '');
   }
-  try { await navigator.clipboard.writeText(md); toast('copied · markdown ready', '#22c55e'); } catch (_) {}
-  const blob = new Blob([md], { type: 'text/markdown' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob); a.download = `kam-caddy-round-${Date.now()}.md`; a.click();
-  feedAdd('shot', 'round exported · markdown' + (coach ? ' · with AI coach' : ''));
+  const cardImg = renderMomentCard(coach || '');
+  showExportModal(md, cardImg);
+  feedAdd('shot', 'round exported · view, share, or save to photos' + (coach ? ' · with AI coach' : ''));
 });
 $('btn-reset').addEventListener('click', () => {
   if (!confirm('Reset the round? Wipes feed, shots, scorecard. Keys, courses, MY BAG kept.')) return;
