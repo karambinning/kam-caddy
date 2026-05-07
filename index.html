@@ -347,6 +347,59 @@
   .panel-score    { border-left-color: var(--green);   } .panel-score    .ph-title { color: var(--green);   text-shadow: 0 0 6px var(--green);   }
   .panel-export   { border-left-color: var(--ask);     } .panel-export   .ph-title { color: var(--ask);     text-shadow: 0 0 6px var(--ask);     }
   .panel-glasses  { border-left-color: var(--glasses); } .panel-glasses  .ph-title { color: var(--glasses); text-shadow: 0 0 6px var(--glasses); }
+  .panel-ready    { border-left-color: var(--bag);     } .panel-ready    .ph-title { color: var(--bag);     text-shadow: 0 0 6px var(--bag);     }
+
+  /* Pre-round readiness checklist */
+  .ready-grid {
+    display: flex; flex-direction: column; gap: 1px;
+    background: var(--bg-line);
+  }
+  .ready-row {
+    display: grid; grid-template-columns: 24px 1fr auto;
+    gap: 10px; align-items: center;
+    padding: 8px 12px;
+    background: var(--bg-3);
+    font-size: 11px;
+  }
+  .ready-row .rs-icon {
+    width: 20px; height: 20px;
+    display: flex; align-items: center; justify-content: center;
+    border: 1.5px solid var(--bg-line);
+    color: var(--dim);
+    font-size: 11px; font-weight: 700;
+  }
+  .ready-row.ok   .rs-icon { color: var(--green); border-color: var(--green); box-shadow: 0 0 6px rgba(34,197,94,0.4); }
+  .ready-row.warn .rs-icon { color: var(--amber); border-color: var(--amber); }
+  .ready-row.miss .rs-icon { color: var(--warn);  border-color: var(--warn); }
+  .ready-row .rs-text {
+    color: var(--text);
+    line-height: 1.4;
+  }
+  .ready-row .rs-text small {
+    display: block; font-size: 9px; color: var(--dim); letter-spacing: 1px; margin-top: 2px;
+  }
+  .ready-row.ok .rs-text small   { color: var(--green); }
+  .ready-row.warn .rs-text small { color: var(--amber); }
+  .ready-row.miss .rs-text small { color: var(--warn);  }
+  .ready-row .rs-act {
+    padding: 6px 10px;
+    background: var(--bg-3);
+    border: 1px solid var(--bag); color: var(--bag);
+    font-family: inherit; font-size: 9px; letter-spacing: 1.5px; font-weight: 700;
+    cursor: pointer; white-space: nowrap;
+  }
+  .ready-row .rs-act:active { background: var(--bag); color: var(--bg); }
+  .ready-row.ok .rs-act { opacity: 0.5; border-color: var(--bg-line); color: var(--dim); }
+  .ready-summary {
+    padding: 10px 12px;
+    text-align: center;
+    font-size: 11px; letter-spacing: 2px; font-weight: 700;
+    background: var(--bg-3);
+    border-top: 1px dashed var(--bg-line);
+  }
+  .ready-summary.go    { color: var(--green); text-shadow: 0 0 8px var(--green); animation: livePulse 2.4s ease-in-out infinite; }
+  .ready-summary.warn  { color: var(--amber); }
+  .ready-summary.miss  { color: var(--warn); }
 
   .intel-grid { display: grid; grid-template-columns: 80px 1fr; gap: 6px 12px; font-size: 11px; }
   .intel-grid dt { color: var(--dim); letter-spacing: 1.5px; font-size: 9px; padding-top: 2px; }
@@ -1315,6 +1368,16 @@
   <div class="mode" id="mode-course">
 
     <button id="btn-start" class="start-btn">▸ START ROUND</button>
+
+    <section class="panel panel-ready" id="panel-ready">
+      <div class="panel-head">
+        <span class="ph-glyph">◉</span>
+        <span class="ph-title">PRE-ROUND READY</span>
+        <span class="ph-sub" id="ready-sub">checking…</span>
+      </div>
+      <div class="ready-grid" id="ready-grid"></div>
+      <div class="ready-summary" id="ready-summary">checking…</div>
+    </section>
 
     <section class="panel panel-course">
       <div class="panel-head">
@@ -4249,6 +4312,60 @@ $('btn-reset').addEventListener('click', () => {
   releaseWakeLock(); location.reload();
 });
 
+// ── Pre-round readiness checklist ────────────────────────────
+const renderReadiness = () => {
+  const grid = $('ready-grid'); if (!grid) return;
+  const haveAnthro = !!localStorage.getItem('caddy.anthropic.key');
+  const haveXi     = !!localStorage.getItem('caddy.elevenlabs.key');
+  const glassesT   = localStorage.getItem('caddy.glasses.tested') === '1';
+  const bagTouched = localStorage.getItem('caddy.bag.touched') === '1';
+  const c = currentCourse();
+  const coursePicked = !!c;
+  const coursePinned = c ? c.holes.filter(h => h.tee && h.green).length === 18 : false;
+  const gpsLocked  = !!state.pos;
+  const wxLive     = !!(state.wind && state.wind.speedMph != null);
+  const checks = [
+    { id:'k-keys',    ok: haveAnthro,                  label: 'API KEYS',  sub: haveAnthro ? 'Anthropic ✓ · Eagle/Birdie are real AI' : 'Anthropic key missing · canned reads only',  act: '⚙ KEYS',     fn: () => $('hdr-keys').click() },
+    { id:'k-bag',     ok: bagTouched,                  label: 'YOUR BAG',  sub: bagTouched ? 'edited or confirmed' : 'set your real club distances',                                  act: '⛳ BAG',      fn: () => $('hdr-bag').click() },
+    { id:'k-course',  ok: coursePinned, warn: coursePicked && !coursePinned, label: 'COURSE',    sub: coursePinned ? `${c.name} · 18/18 mapped` : (coursePicked ? `${c.name} · pin holes for accurate distances` : 'pick a course'), act: coursePinned ? '✓' : '◉ PIN',  fn: () => coursePinned ? null : $('btn-course-pin').click() },
+    { id:'k-glasses', ok: glassesT,                    label: 'GLASSES',   sub: glassesT ? 'audio routing tested' : 'pair Ray-Bans + tap TEST AUDIO below',                            act: '🔊 TEST',    fn: () => { $('btn-test-audio').click(); document.querySelector('.scroll').scrollTo({ top: 99999, behavior:'smooth' }); } },
+    { id:'k-gps',     ok: gpsLocked,                   label: 'GPS LOCK',  sub: gpsLocked ? `locked at ${state.pos.lat.toFixed(3)},${state.pos.lon.toFixed(3)}` : 'tap ▸ START ROUND when at the tee',  act: gpsLocked ? '✓' : '▸ START', fn: () => gpsLocked ? null : $('btn-start').click() },
+  ];
+  grid.innerHTML = checks.map(c => {
+    const cls = c.ok ? 'ok' : (c.warn ? 'warn' : 'miss');
+    const icon = c.ok ? '✓' : (c.warn ? '◐' : '○');
+    return `<div class="ready-row ${cls}" data-id="${c.id}">
+      <div class="rs-icon">${icon}</div>
+      <div class="rs-text">${c.label}<small>${escapeHtml(c.sub)}</small></div>
+      <button class="rs-act">${c.act}</button>
+    </div>`;
+  }).join('');
+  grid.querySelectorAll('.ready-row').forEach((row, i) => {
+    const btn = row.querySelector('.rs-act');
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const fn = checks[i].fn; if (typeof fn === 'function') fn();
+    });
+  });
+  // Summary
+  const ready = checks.every(c => c.ok);
+  const partial = checks.filter(c => c.ok || c.warn).length;
+  const summary = $('ready-summary');
+  if (ready) {
+    summary.textContent = `✓ READY · GO PLAY`;
+    summary.className = 'ready-summary go';
+    $('ready-sub').textContent = '5/5 ready';
+  } else {
+    summary.textContent = `◐ ${partial}/5 READY · finish the rest`;
+    summary.className = 'ready-summary ' + (partial >= 3 ? 'warn' : 'miss');
+    $('ready-sub').textContent = `${partial}/5 ready`;
+  }
+};
+setInterval(renderReadiness, 3000);
+// Mark bag as touched when user opens it
+const _origBagOpen = $('hdr-bag').onclick;
+$('hdr-bag').addEventListener('click', () => { localStorage.setItem('caddy.bag.touched', '1'); }, { capture: true });
+
 // ── Live data status row ─────────────────────────────────────
 const renderDataStatus = () => {
   const setStat = (id, text, cls) => {
@@ -4271,6 +4388,7 @@ setMode(state.mode || 'course');
 renderFeed(); renderAnalysis(); renderScorecard();
 renderCoursePanel(); buildClubGrid('course-clubs');
 renderMapKeyStatus();
+renderReadiness();
 if (state.hole) {
   $('chip-hole').textContent     = state.hole.n;
   $('chip-hole-sub').textContent = `PAR ${state.hole.par} · ${state.hole.name}`;
