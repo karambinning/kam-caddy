@@ -180,6 +180,66 @@
   .achievement-flash.fire { animation: ach 1.4s ease-out; }
   @keyframes ach { 0% { opacity: 0; } 20% { opacity: 1; } 100% { opacity: 0; } }
 
+  /* Achievement banner · big readable celebration */
+  .achievement-banner {
+    position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, -50%) scale(0.6);
+    z-index: 10;
+    padding: 18px 36px;
+    background: rgba(4,8,15,0.92);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border: 3px solid var(--eagle);
+    color: var(--eagle);
+    font-size: 36px; letter-spacing: 6px; font-weight: 700;
+    text-align: center;
+    text-shadow: 0 0 12px var(--eagle);
+    box-shadow: 0 0 32px var(--eagle);
+    pointer-events: none; opacity: 0;
+    white-space: nowrap;
+  }
+  .achievement-banner.birdie { border-color: var(--birdie); color: var(--birdie); text-shadow: 0 0 12px var(--birdie); box-shadow: 0 0 32px var(--birdie); }
+  .achievement-banner.par    { border-color: var(--green);  color: var(--green);  text-shadow: 0 0 12px var(--green);  box-shadow: 0 0 32px var(--green); }
+  .achievement-banner.fire   { animation: bannerPop 2.2s ease-out; }
+  @keyframes bannerPop {
+    0%   { transform: translate(-50%, -50%) scale(0.4); opacity: 0; }
+    15%  { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
+    25%  { transform: translate(-50%, -50%) scale(1.0); opacity: 1; }
+    80%  { transform: translate(-50%, -50%) scale(1.0); opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(0.95); opacity: 0; }
+  }
+  .achievement-banner .ab-sub {
+    display: block;
+    font-size: 12px; letter-spacing: 3px;
+    color: var(--text); text-shadow: none;
+    margin-top: 6px; opacity: 0.85;
+  }
+
+  /* Last shot strip · context bar that updates as you play */
+  .ctx-strip {
+    flex-shrink: 0;
+    display: none;
+    padding: 6px 12px;
+    background: var(--bg-2);
+    border-bottom: 1px solid var(--bg-line);
+    font-size: 9px; letter-spacing: 1.5px;
+    color: var(--dim);
+    line-height: 1.4;
+  }
+  .ctx-strip.live { display: flex; align-items: center; gap: 12px; }
+  .ctx-strip .ctx-club { color: var(--green); font-weight: 700; text-shadow: 0 0 4px var(--green); }
+  .ctx-strip .ctx-shot { color: var(--intel); }
+  .ctx-strip .ctx-score { color: var(--eagle); font-weight: 700; margin-left: auto; text-shadow: 0 0 4px var(--eagle); }
+
+  /* Dismiss button on readiness when complete */
+  .panel-ready.dismissed {
+    opacity: 0.6;
+  }
+  .panel-ready .ready-collapse {
+    background: transparent; border: none;
+    color: var(--dim); font-size: 10px; cursor: pointer;
+    padding: 0 4px; letter-spacing: 1px;
+  }
+
   /* Data status strip · tells you what's wired in at a glance */
   .data-stat {
     flex-shrink: 0;
@@ -1338,6 +1398,12 @@
   <span class="ds miss" id="ds-glasses">○ GLASSES</span>
 </div>
 
+<div class="ctx-strip" id="ctx-strip">
+  <span class="ctx-club" id="ctx-club">—</span>
+  <span class="ctx-shot" id="ctx-shot">—</span>
+  <span class="ctx-score" id="ctx-score">—</span>
+</div>
+
 <div class="chips">
   <div class="chip">
     <span class="chip-label">HOLE</span>
@@ -1366,6 +1432,7 @@
   <div class="stage-watermark">⛳ KAM CADDY</div>
   <div class="rec-dot"></div>
   <div class="achievement-flash" id="achievement-flash"></div>
+  <div class="achievement-banner" id="achievement-banner"></div>
 
   <div class="cad-av cad-av-eagle" id="av-eagle">
     <div class="cad-av-stripe"></div>
@@ -3645,6 +3712,18 @@ $('btn-end-hole').addEventListener('click', () => {
   triggerAchievement(diff, endedHole, shots);
   renderScorecard(); renderAnalysis(); persist();
   postHoleAISummary(endedHole, shots, diff, shotLog);
+  // Auto-advance to next hole · helps walking through holes during testing or off-course play
+  setTimeout(() => {
+    const nextN = endedHole.n === 18 ? null : endedHole.n + 1;
+    if (nextN) {
+      previewHole(nextN);
+      toast(`▸ next hole · H${nextN}`, '#22c55e');
+    } else {
+      // Round complete · auto-fire export
+      toast('round complete · 18/18 · opening export', '#fbbf24');
+      setTimeout(() => $('btn-export').click(), 1500);
+    }
+  }, 2200);
 });
 
 const postHoleAISummary = async (hole, shots, diff, shotLog) => {
@@ -3664,12 +3743,31 @@ const postHoleAISummary = async (hole, shots, diff, shotLog) => {
   } catch (e) {}
 };
 const triggerAchievement = (diff, h, shots) => {
-  if (diff <= -2) { playChime('eagle'); flashAchievement(); speakEagle(`EAGLE on ${h.name}! ${shots} shots on a par ${h.par}. Best of the round.`); }
-  else if (diff === -1) { playChime('birdie'); flashAchievement(); speakEagle(`Birdie on ${h.n}. ${shots} shots, par ${h.par}. That's how you do it.`); }
-  else if (diff === 0) { playChime('par'); speakEagle(`Par on ${h.n}. Level. On to the next.`); }
-  else speakEagle(`Hole ${h.n} done. ${shots} shots, +${diff}. Reset.`);
+  if (diff <= -2) {
+    playChime('eagle'); flashAchievement();
+    showAchievementBanner('EAGLE', `H${h.n} · ${shots} shots`, 'eagle');
+    speakEagle(`EAGLE on ${h.name}! ${shots} shots on a par ${h.par}. Best of the round.`);
+  } else if (diff === -1) {
+    playChime('birdie'); flashAchievement();
+    showAchievementBanner('BIRDIE', `H${h.n} · ${shots} shots`, 'birdie');
+    speakEagle(`Birdie on ${h.n}. ${shots} shots, par ${h.par}. That's how you do it.`);
+  } else if (diff === 0) {
+    playChime('par');
+    showAchievementBanner('PAR', `H${h.n} · ${shots} shots`, 'par');
+    speakEagle(`Par on ${h.n}. Level. On to the next.`);
+  } else {
+    speakEagle(`Hole ${h.n} done. ${shots} shots, +${diff}. Reset.`);
+  }
 };
 const flashAchievement = () => { const f = $('achievement-flash'); f.classList.remove('fire'); void f.offsetWidth; f.classList.add('fire'); };
+const showAchievementBanner = (text, sub, kind) => {
+  const b = $('achievement-banner'); if (!b) return;
+  b.className = 'achievement-banner';
+  b.classList.add(kind || 'eagle');
+  b.innerHTML = `${text}<span class="ab-sub">${escapeHtml(sub || '')}</span>`;
+  void b.offsetWidth;
+  b.classList.add('fire');
+};
 
 const renderScorecard = () => {
   const $r = $('score-rows'); $r.innerHTML = '';
@@ -4501,6 +4599,34 @@ setInterval(renderReadiness, 3000);
 // Mark bag as touched when user opens it
 const _origBagOpen = $('hdr-bag').onclick;
 $('hdr-bag').addEventListener('click', () => { localStorage.setItem('caddy.bag.touched', '1'); }, { capture: true });
+
+// ── Live context strip · selected club + last shot + score ──────
+const renderCtxStrip = () => {
+  const strip = $('ctx-strip'); if (!strip) return;
+  const club = clubById(state.selectedClubId);
+  const ends = state.holeEnds || [];
+  const inProgress = state.hole && state.shotsByHole[state.hole.n] && !ends.find(e => e.n === state.hole.n) ? state.shotsByHole[state.hole.n] : 0;
+  const totalShots = ends.reduce((a,e) => a + e.shots, 0) + inProgress;
+  const totalPar = ends.reduce((a,e) => a + e.par, 0);
+  const dp = ends.length ? totalShots - totalPar : 0;
+  const haveAny = club || (state.hole && (state.shotsByHole[state.hole.n] > 0 || ends.length));
+  if (!haveAny) { strip.classList.remove('live'); return; }
+  strip.classList.add('live');
+  $('ctx-club').textContent = club ? `▾ ${club.name} ${club.avg}m` : '— no club';
+  // Last shot summary
+  const lastShotEntry = state.hole && state.shotsLog[state.hole.n] && state.shotsLog[state.hole.n].length
+    ? state.shotsLog[state.hole.n][state.shotsLog[state.hole.n].length - 1] : null;
+  if (lastShotEntry) {
+    $('ctx-shot').textContent = `LAST · ${lastShotEntry.club || '—'}${lastShotEntry.distM != null ? ' · ' + lastShotEntry.distM + 'm' : ''}`;
+  } else if (ends.length) {
+    const last = ends[ends.length - 1];
+    $('ctx-shot').textContent = `H${last.n} · ${last.shots}${last.diff === 0 ? ' E' : last.diff < 0 ? ' ' + last.diff : ' +' + last.diff}`;
+  } else $('ctx-shot').textContent = 'no shot yet';
+  if (ends.length) {
+    $('ctx-score').textContent = `${dp >= 0 ? '+' : ''}${dp} · ${ends.length}/18`;
+  } else $('ctx-score').textContent = state.hole ? `H${state.hole.n} ready` : '';
+};
+setInterval(renderCtxStrip, 1500);
 
 // ── Live data status row ─────────────────────────────────────
 const renderDataStatus = () => {
