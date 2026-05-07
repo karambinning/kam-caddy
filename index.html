@@ -1852,26 +1852,43 @@ const avThink = (who, on) => { $('av-' + who).classList.toggle('thinking', !!on)
 // ElevenLabs
 // ── Browser-native Web Speech (Siri-quality on iOS, no API key, no 404) ──
 let _voicesCache = null;
-const refreshVoices = () => { if (window.speechSynthesis) _voicesCache = speechSynthesis.getVoices() || []; };
+let _cachedVoices = { eagle: null, birdie: null };
+const refreshVoices = () => {
+  if (window.speechSynthesis) _voicesCache = speechSynthesis.getVoices() || [];
+  // Voices changed → invalidate cached picks so the next speak re-selects
+  _cachedVoices = { eagle: null, birdie: null };
+};
 if (window.speechSynthesis) {
   refreshVoices();
   speechSynthesis.addEventListener?.('voiceschanged', refreshVoices);
 }
+// Voice picking · explicit MALE / FEMALE name lists (Web Speech doesn't expose gender)
+// Source: Apple iOS / macOS + common Microsoft Edge British voices.
+const _FEMALE_VOICES = /\b(samantha|karen|serena|lily|kate|tessa|fiona|moira|veena|allison|ava|emily|joelle|catherine|martha|bridget|olivia|charlotte|susan|nicky|tracy|vicki|victoria|princess|hazel|libby|sonia|maisie|aria|nancy|jenny|noelle|nora|elsa)\b/i;
+const _MALE_VOICES   = /\b(daniel|oliver|arthur|albert|george|jamie|gordon|ralph|reed|aaron|fred|alex|bruce|junior|tom|guy|ryan|brian|jacob|ethan|noah)\b/i;
 const pickBrowserVoice = (who) => {
   const all = _voicesCache || [];
   if (!all.length) return null;
-  const british = all.filter(v => /^en[-_]GB/i.test(v.lang));
-  const englishAny = all.filter(v => /^en/i.test(v.lang));
-  const pool = british.length ? british : (englishAny.length ? englishAny : all);
-  if (who === 'eagle') {
-    // Male British preferred — these are Apple/Microsoft system voices
-    return pool.find(v => /\b(daniel|oliver|arthur|albert|george|jamie|gordon|ralph|reed|aaron|fred|alex)\b/i.test(v.name))
-        || pool.find(v => /male/i.test(v.name))
-        || pool[0];
+  // Re-pick when first call or when voices changed
+  if (!_cachedVoices.eagle || !_cachedVoices.birdie || !all.includes(_cachedVoices.eagle)) {
+    const british = all.filter(v => /^en[-_]GB/i.test(v.lang));
+    const englishAny = all.filter(v => /^en/i.test(v.lang));
+    const pool = british.length ? british : (englishAny.length ? englishAny : all);
+    // Eagle = male preferred
+    _cachedVoices.eagle =
+         pool.find(v => _MALE_VOICES.test(v.name))
+      || pool.find(v => /male/i.test(v.name) && !/female/i.test(v.name))
+      || pool[0];
+    // Birdie = female preferred, MUST be different from Eagle if possible
+    _cachedVoices.birdie =
+         pool.find(v => v !== _cachedVoices.eagle && _FEMALE_VOICES.test(v.name))
+      || pool.find(v => v !== _cachedVoices.eagle && /female/i.test(v.name))
+      // No female voice available — pick any voice that isn't Eagle's
+      || pool.find(v => v !== _cachedVoices.eagle)
+      // Single-voice fallback: same voice, pitch differentiation in the utterance handles character
+      || _cachedVoices.eagle;
   }
-  return pool.find(v => /\b(serena|kate|martha|fiona|samantha|karen|moira|tessa|catherine|allison|ava|emily|joelle|lily)\b/i.test(v.name))
-      || pool.find(v => /female/i.test(v.name))
-      || pool[Math.min(1, pool.length - 1)];
+  return who === 'eagle' ? _cachedVoices.eagle : _cachedVoices.birdie;
 };
 const speakViaWebSpeech = (text, who) => {
   if (!window.speechSynthesis) { setTimeout(() => avSpeakStop(who), Math.min(text.length * 55, 6000)); return false; }
@@ -1881,8 +1898,10 @@ const speakViaWebSpeech = (text, who) => {
       u.lang = 'en-GB';
       const v = pickBrowserVoice(who);
       if (v) u.voice = v;
-      u.rate = 0.96;
-      u.pitch = who === 'eagle' ? 0.88 : 1.12;
+      // If iOS only has ONE voice and it's the same for both, pitch differentiates character
+      const sameVoice = _cachedVoices.eagle === _cachedVoices.birdie;
+      u.rate  = who === 'eagle' ? 0.94 : 1.02;
+      u.pitch = who === 'eagle' ? (sameVoice ? 0.78 : 0.88) : (sameVoice ? 1.30 : 1.18);
       u.volume = 1;
       u.onend   = () => avSpeakStop(who);
       u.onerror = () => avSpeakStop(who);
