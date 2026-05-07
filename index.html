@@ -370,6 +370,65 @@
     50%      { box-shadow: 0 0 32px currentColor, inset 0 0 0 1px #fff; }
   }
 
+  /* Sheet handle · tap to toggle stage fullscreen vs HUD-open */
+  .sheet-handle {
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    gap: 12px;
+    height: 38px;
+    background: linear-gradient(180deg, var(--bg-2), var(--bg));
+    border-top: 1px solid var(--bg-line);
+    border-bottom: 2px solid var(--green);
+    cursor: pointer;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px; letter-spacing: 3px; font-weight: 700;
+    color: var(--green);
+    text-shadow: 0 0 6px var(--green);
+    transition: background .12s;
+    position: relative;
+  }
+  .sheet-handle:active { background: var(--green); color: var(--bg); }
+  .sheet-handle::before {
+    content: ''; display: block;
+    width: 44px; height: 3px;
+    background: var(--green);
+    box-shadow: 0 0 10px var(--green);
+    position: absolute; top: 5px; left: 50%; transform: translateX(-50%);
+  }
+  .sheet-arrow {
+    font-size: 11px;
+    transition: transform .25s ease;
+    display: inline-block;
+  }
+  body.hud-collapsed .sheet-arrow { transform: rotate(180deg); }
+  /* Stage fullscreen state · scroll collapsed, stage takes remaining viewport */
+  body.hud-collapsed .scroll { display: none; }
+  body.hud-collapsed .stage  { flex: 1; height: auto; min-height: 0; }
+  .stage, .scroll { transition: flex .28s ease, height .28s ease; }
+  /* Tactical corner brackets on the stage for KAM cinematic feel */
+  .stage-corners {
+    position: absolute; inset: 0; pointer-events: none;
+    z-index: 7;
+    display: none;
+  }
+  body.hud-collapsed .stage-corners { display: block; }
+  .stage-corners .sc {
+    position: absolute;
+    width: 28px; height: 28px;
+    border-color: var(--green);
+    box-shadow: 0 0 6px var(--green);
+  }
+  .stage-corners .sc-tl { top: 8px;    left: 8px;    border-top: 2px solid; border-left: 2px solid; }
+  .stage-corners .sc-tr { top: 8px;    right: 8px;   border-top: 2px solid; border-right: 2px solid; }
+  .stage-corners .sc-bl { bottom: 8px; left: 8px;    border-bottom: 2px solid; border-left: 2px solid; }
+  .stage-corners .sc-br { bottom: 8px; right: 8px;   border-bottom: 2px solid; border-right: 2px solid; }
+  /* Subtle scanline overlay during fullscreen for retro-tactical feel */
+  body.hud-collapsed .stage::before {
+    content: ''; position: absolute; inset: 0;
+    pointer-events: none; z-index: 6;
+    background: repeating-linear-gradient(0deg, rgba(34,197,94,0) 0, rgba(34,197,94,0) 2px, rgba(34,197,94,0.03) 2px, rgba(34,197,94,0.03) 3px);
+  }
+
   .scroll {
     flex: 1; min-height: 0;
     overflow-y: auto; overflow-x: hidden;
@@ -1431,6 +1490,7 @@
   <div class="stage-vignette"></div>
   <div class="stage-watermark">⛳ KAM CADDY</div>
   <div class="rec-dot"></div>
+  <div class="stage-corners"><div class="sc sc-tl"></div><div class="sc sc-tr"></div><div class="sc sc-bl"></div><div class="sc sc-br"></div></div>
   <div class="achievement-flash" id="achievement-flash"></div>
   <div class="achievement-banner" id="achievement-banner"></div>
 
@@ -1469,6 +1529,12 @@
   <button id="btn-talk" class="stage-talk">◉ ASK CADDY</button>
   <button id="btn-arm"  class="stage-arm">▸ I'M GONNA SHOOT</button>
 </div>
+
+<button class="sheet-handle" id="sheet-handle" type="button">
+  <span class="sheet-arrow">▼</span>
+  <span id="sheet-label">HUD · TAP TO COLLAPSE</span>
+  <span class="sheet-arrow">▼</span>
+</button>
 
 <main class="scroll">
 
@@ -4678,6 +4744,33 @@ const renderDataStatus = () => {
   setStat('ds-glasses', tested ? '✓ GLASSES' : '○ GLASSES', tested ? 'ok' : 'miss');
 };
 setInterval(renderDataStatus, 2500);
+
+// ── Stage / HUD toggle · Apple-Maps style pull-up sheet ────────
+const updateSheetHandle = () => {
+  const collapsed = document.body.classList.contains('hud-collapsed');
+  $('sheet-label').textContent = collapsed ? 'STAGE · TAP FOR HUD' : 'HUD · TAP TO COLLAPSE';
+};
+$('sheet-handle').addEventListener('click', () => {
+  document.body.classList.toggle('hud-collapsed');
+  const c = document.body.classList.contains('hud-collapsed');
+  localStorage.setItem('caddy.hudCollapsed', c ? '1' : '0');
+  updateSheetHandle();
+  // Maps need to re-measure when the layout shifts
+  setTimeout(() => {
+    if (map)      try { map.invalidateSize(); }      catch(_) {}
+    if (stageMap) try { stageMap.invalidateSize(); } catch(_) {}
+    if (pinMap)   try { pinMap.invalidateSize(); }   catch(_) {}
+    // Re-focus the focal hole so the new larger stage centres on it
+    if (c) focusFocalHole({ animate: false });
+  }, 320);
+});
+// Default to STAGE FULLSCREEN on first load · Boss can tap to open the HUD
+{
+  const stored = localStorage.getItem('caddy.hudCollapsed');
+  if (stored === null) document.body.classList.add('hud-collapsed');
+  else if (stored === '1') document.body.classList.add('hud-collapsed');
+  updateSheetHandle();
+}
 
 // Boot
 setMode(state.mode || 'course');
