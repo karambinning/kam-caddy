@@ -429,6 +429,101 @@
     background: repeating-linear-gradient(0deg, rgba(34,197,94,0) 0, rgba(34,197,94,0) 2px, rgba(34,197,94,0.03) 2px, rgba(34,197,94,0.03) 3px);
   }
 
+  /* Stage HUD overlays · KAM tactical info on the fullscreen stage */
+  .stage-overlay { display: none; }
+  body.hud-collapsed .stage-overlay { display: block; }
+  body.hud-collapsed .stage-watermark { display: none; }
+
+  .stage-ov-intel {
+    position: absolute; top: 12px; left: 12px;
+    z-index: 5;
+    max-width: 56%;
+    background: rgba(4,8,15,0.82);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border: 1px solid var(--intel);
+    border-left: 3px solid var(--intel);
+    padding: 7px 10px 8px;
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--text);
+    box-shadow: 0 0 12px rgba(56,189,248,0.3);
+    cursor: pointer;
+  }
+  .stage-ov-intel:active { background: rgba(56,189,248,0.15); }
+
+  .stage-ov-score {
+    position: absolute; top: 12px; right: 12px;
+    z-index: 5;
+    max-width: 38%;
+    background: rgba(4,8,15,0.82);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border: 1px solid var(--eagle);
+    border-right: 3px solid var(--eagle);
+    padding: 7px 10px 8px;
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--text);
+    box-shadow: 0 0 12px rgba(251,191,36,0.3);
+    text-align: right;
+    cursor: pointer;
+  }
+  .stage-ov-score:active { background: rgba(251,191,36,0.15); }
+
+  .ovl-line {
+    font-size: 9px; letter-spacing: 1px; line-height: 1.45;
+    color: var(--text); margin: 2px 0;
+  }
+  .ovl-title {
+    color: var(--intel); font-weight: 700; font-size: 11px; letter-spacing: 2px;
+    text-shadow: 0 0 5px var(--intel); margin-bottom: 4px;
+  }
+  .ovl-meta { font-size: 8px; color: var(--dim); letter-spacing: 1px; }
+  .ovl-layout { font-size: 9px; color: var(--text); margin-top: 3px; line-height: 1.4; }
+  .ovl-haz    { font-size: 8.5px; color: var(--warn); margin-top: 2px; line-height: 1.4; }
+  .ovl-line-line { font-size: 9px; color: var(--intel); text-shadow: 0 0 4px var(--intel); margin-top: 3px; font-weight: 700; line-height: 1.4; }
+  .ovl-club {
+    font-size: 10px; color: var(--green); font-weight: 700;
+    text-shadow: 0 0 5px var(--green);
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 1px dashed var(--bg-line);
+  }
+  .ovl-score-big {
+    font-size: 32px; font-weight: 700; color: var(--eagle);
+    text-shadow: 0 0 10px var(--eagle); line-height: 1;
+  }
+  .ovl-score-sub { font-size: 8px; color: var(--dim); letter-spacing: 1.5px; margin-top: 4px; }
+  .ovl-score-last { font-size: 8.5px; color: var(--text); margin-top: 4px; letter-spacing: 1px; }
+  .ovl-dots { display: flex; gap: 2px; margin-top: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .ovl-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--bg-line); display: inline-block; }
+  .ovl-dot.under { background: var(--green); box-shadow: 0 0 4px var(--green); }
+  .ovl-dot.par   { background: var(--eagle); box-shadow: 0 0 3px var(--eagle); }
+  .ovl-dot.over  { background: var(--warn); box-shadow: 0 0 3px var(--warn); }
+  .ovl-dot.cur   { background: transparent; border: 1.5px solid var(--eagle); box-shadow: 0 0 5px var(--eagle); width: 8px; height: 8px; }
+  .ovl-dot.pending { opacity: 0.4; }
+
+  /* Bottom-edge live ticker · last 2 events */
+  .stage-ov-ticker {
+    position: absolute; bottom: 138px; left: 12px; right: 12px;
+    z-index: 4;
+    padding: 5px 9px;
+    background: rgba(4,8,15,0.78);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    border-left: 2px solid var(--birdie);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8.5px; letter-spacing: 1px;
+    color: var(--text); line-height: 1.4;
+    box-shadow: 0 0 8px rgba(236,72,153,0.25);
+  }
+  .stage-ov-ticker .tk { display: block; }
+  .stage-ov-ticker .tk .tk-time { color: var(--dim); margin-right: 6px; }
+  .stage-ov-ticker .tk .tk-tag  { font-weight: 700; margin-right: 6px; }
+  .stage-ov-ticker .tk .tk-tag.eagle  { color: var(--eagle); }
+  .stage-ov-ticker .tk .tk-tag.birdie { color: var(--birdie); }
+  .stage-ov-ticker .tk .tk-tag.shot   { color: var(--intel); }
+  .stage-ov-ticker .tk .tk-tag.hole   { color: var(--green); }
+  .stage-ov-ticker .tk .tk-tag.gps    { color: var(--green); }
+  .stage-ov-ticker .tk .tk-tag.you    { color: var(--ask); }
+  .stage-ov-ticker .tk .tk-tag.wx     { color: var(--amber); }
+
   .scroll {
     flex: 1; min-height: 0;
     overflow-y: auto; overflow-x: hidden;
@@ -1493,6 +1588,9 @@
   <div class="stage-corners"><div class="sc sc-tl"></div><div class="sc sc-tr"></div><div class="sc sc-bl"></div><div class="sc sc-br"></div></div>
   <div class="achievement-flash" id="achievement-flash"></div>
   <div class="achievement-banner" id="achievement-banner"></div>
+  <div class="stage-overlay stage-ov-intel" id="stage-ov-intel"></div>
+  <div class="stage-overlay stage-ov-score" id="stage-ov-score"></div>
+  <div class="stage-overlay stage-ov-ticker" id="stage-ov-ticker"></div>
 
   <div class="cad-av cad-av-eagle" id="av-eagle">
     <div class="cad-av-stripe"></div>
@@ -4744,6 +4842,83 @@ const renderDataStatus = () => {
   setStat('ds-glasses', tested ? '✓ GLASSES' : '○ GLASSES', tested ? 'ok' : 'miss');
 };
 setInterval(renderDataStatus, 2500);
+
+// ── Stage HUD overlays · all key data ON the fullscreen stage ──
+const renderStageHud = () => {
+  const intel = $('stage-ov-intel');
+  const score = $('stage-ov-score');
+  const ticker = $('stage-ov-ticker');
+  if (!intel || !score || !ticker) return;
+  // INTEL CARD top-left
+  if (state.hole) {
+    const h = state.hole;
+    const det = (typeof recommendClubDetail === 'function') ? recommendClubDetail() : null;
+    let clubLine = '— pick a club';
+    if (det) {
+      const adj = [];
+      if (Math.abs(det.f.windAdjustM) >= 2) adj.push((det.f.windAdjustM >= 0 ? '+' : '') + det.f.windAdjustM + 'm wind');
+      if (Math.abs(det.f.elevAdjustM) >= 2) adj.push((det.f.elevAdjustM >= 0 ? '+' : '') + det.f.elevAdjustM + 'm elev');
+      clubLine = `▾ ${det.club.name} · plays ${det.f.playingDistance}m${adj.length ? ' · ' + adj.join(' · ') : ''}`;
+    } else if (h.line) {
+      clubLine = h.line;
+    }
+    intel.innerHTML = `
+      <div class="ovl-line ovl-title">H${h.n} · ${escapeHtml(h.name)}</div>
+      <div class="ovl-line ovl-meta">PAR ${h.par} · ${h.yds}y · SI ${h.si}${state.distM != null ? ' · pin ' + Math.round(state.distM) + 'm' : ''}</div>
+      <div class="ovl-line ovl-layout">${escapeHtml(h.layout || '')}</div>
+      <div class="ovl-line ovl-haz">⚠ ${escapeHtml(h.hazards || '')}</div>
+      <div class="ovl-line ovl-line-line">▸ ${escapeHtml(h.line || '')}</div>
+      <div class="ovl-line ovl-club">${escapeHtml(clubLine)}</div>
+    `;
+  } else {
+    intel.innerHTML = `<div class="ovl-line ovl-title">no hole · use ◂/▸ in HUD</div><div class="ovl-line ovl-meta">tap below to open HUD</div>`;
+  }
+  // SCORE CARD top-right
+  const ends = state.holeEnds || [];
+  const inProgressShots = state.hole && state.shotsByHole[state.hole.n] && !ends.find(e => e.n === state.hole.n) ? state.shotsByHole[state.hole.n] : 0;
+  const totalShots = ends.reduce((a,e) => a + e.shots, 0) + inProgressShots;
+  const totalPar = ends.reduce((a,e) => a + e.par, 0);
+  const dp = ends.length ? totalShots - totalPar : 0;
+  let dots = '';
+  for (let i = 1; i <= 18; i++) {
+    const e = ends.find(x => x.n === i);
+    const isCurrent = state.hole?.n === i;
+    let cls = 'pending';
+    if (e) cls = e.diff < 0 ? 'under' : (e.diff > 0 ? 'over' : 'par');
+    if (isCurrent && !e) cls = 'cur';
+    dots += `<span class="ovl-dot ${cls}"></span>`;
+  }
+  const last = ends[ends.length - 1];
+  const lastTxt = last ? `H${last.n} · ${last.shots}${last.diff === 0 ? ' E' : last.diff < 0 ? ' ' + last.diff : ' +' + last.diff}` : 'no hole done yet';
+  score.innerHTML = `
+    <div class="ovl-score-big">${ends.length ? (dp >= 0 ? '+' + dp : dp) : '—'}</div>
+    <div class="ovl-score-sub">${ends.length}/18 · ${totalShots} SHOTS</div>
+    <div class="ovl-score-last">last · ${escapeHtml(lastTxt)}</div>
+    <div class="ovl-dots">${dots}</div>
+  `;
+  // TICKER · last 2 feed events
+  const recent = (state.feed || []).slice(0, 2);
+  if (recent.length) {
+    ticker.innerHTML = recent.map(e => `<span class="tk"><span class="tk-time">${fmtTime(e.ts)}</span><span class="tk-tag ${e.tag}">${e.tag.toUpperCase()}</span>${escapeHtml(e.text).slice(0, 80)}</span>`).join('');
+    ticker.style.display = '';
+  } else {
+    ticker.style.display = 'none';
+  }
+};
+setInterval(renderStageHud, 1500);
+// Tap intel/score overlays → expand HUD and scroll to relevant panel
+document.addEventListener('click', (e) => {
+  const intel = e.target.closest('#stage-ov-intel');
+  const score = e.target.closest('#stage-ov-score');
+  if (!intel && !score) return;
+  if (document.body.classList.contains('hud-collapsed')) {
+    $('sheet-handle').click();
+  }
+  setTimeout(() => {
+    const target = intel ? document.querySelector('.panel-intel') : document.querySelector('.panel-score');
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 320);
+}, true);
 
 // ── Stage / HUD toggle · Apple-Maps style pull-up sheet ────────
 const updateSheetHandle = () => {
