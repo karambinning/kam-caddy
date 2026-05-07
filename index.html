@@ -37,13 +37,16 @@
       -webkit-tap-highlight-color: transparent;
       user-select: none; -webkit-user-select: none; }
   html, body { height: 100%; overscroll-behavior: contain; -webkit-font-smoothing: antialiased; }
+  html { height: 100dvh; }
   body {
     background: var(--bg); color: var(--text);
     font-family: 'IBM Plex Mono', 'SF Mono', Menlo, monospace;
     font-size: 14px; line-height: 1.4;
-    height: 100vh; height: 100dvh; height: -webkit-fill-available;
+    height: 100dvh;
+    min-height: -webkit-fill-available;
     padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
     display: flex; flex-direction: column; overflow: hidden;
+    box-sizing: border-box;
   }
   button { font-family: inherit; cursor: pointer; border: none;
            transition: transform .08s linear, background .12s linear, box-shadow .12s linear; }
@@ -92,7 +95,7 @@
 
   .stage {
     flex-shrink: 0; position: relative;
-    height: clamp(240px, 40vh, 340px);
+    height: clamp(220px, 32vh, 320px);
     background: #000; overflow: hidden;
     border-bottom: 2px solid var(--green);
   }
@@ -153,20 +156,22 @@
   .achievement-flash.fire { animation: ach 1.4s ease-out; }
   @keyframes ach { 0% { opacity: 0; } 20% { opacity: 1; } 100% { opacity: 0; } }
 
+  /* Live data strip · sits BETWEEN mode bar and stage as its own row · stage stays clean */
   .chips {
-    position: absolute; top: 50px; left: 10px; right: 10px;
-    display: flex; gap: 6px; pointer-events: none; z-index: 4;
+    flex-shrink: 0;
+    display: flex; gap: 1px;
+    padding: 1px;
+    background: var(--bg-line);
+    border-bottom: 1px solid var(--bg-line);
   }
   .chip {
-    flex: 1; padding: 6px 6px 7px;
-    background: rgba(4,8,15,0.78);
-    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-    border: 1px solid var(--green);
-    text-align: center; box-shadow: 0 0 8px rgba(34,197,94,0.25);
+    flex: 1; padding: 7px 6px;
+    background: var(--bg-3);
+    text-align: center;
   }
-  .chip-label { font-size: 7px; letter-spacing: 1.5px; color: var(--dim); display: block; }
-  .chip-value { font-size: 14px; font-weight: 700; color: var(--green); text-shadow: 0 0 6px var(--green); line-height: 1.1; }
-  .chip-sub   { font-size: 7px; letter-spacing: 1px; color: var(--dim); }
+  .chip-label { font-size: 7px; letter-spacing: 1.5px; color: var(--dim); display: block; margin-bottom: 1px; }
+  .chip-value { font-size: 14px; font-weight: 700; color: var(--green); text-shadow: 0 0 6px var(--green); line-height: 1.15; }
+  .chip-sub   { font-size: 7px; letter-spacing: 1px; color: var(--dim); margin-top: 1px; }
 
   .cad-av {
     position: absolute; z-index: 5;
@@ -1003,9 +1008,8 @@
     .mode-btn { padding: 9px 3px; font-size: 8.5px; letter-spacing: 1.5px; }
     .mode-btn .glyph { font-size: 16px; }
 
-    .stage { height: clamp(220px, 38vh, 300px); }
-    .chips { top: 8px; left: 8px; right: 8px; gap: 4px; }
-    .chip { padding: 5px 4px 6px; }
+    .stage { height: clamp(200px, 28vh, 280px); }
+    .chip { padding: 6px 4px; }
     .chip-value { font-size: 13px; }
     .chip-label, .chip-sub { font-size: 7px; letter-spacing: 1px; }
 
@@ -1142,6 +1146,24 @@
   <button class="mode-btn"        data-mode="green"><span class="glyph">🎯</span>PUTTING</button>
 </nav>
 
+<div class="chips">
+  <div class="chip">
+    <span class="chip-label">HOLE</span>
+    <span class="chip-value" id="chip-hole">—</span>
+    <span class="chip-sub"   id="chip-hole-sub">no course</span>
+  </div>
+  <div class="chip">
+    <span class="chip-label">DIST PIN</span>
+    <span class="chip-value" id="chip-dist">—</span>
+    <span class="chip-sub"   id="chip-dist-sub">m / yds</span>
+  </div>
+  <div class="chip">
+    <span class="chip-label">WIND</span>
+    <span class="chip-value" id="chip-wind">—</span>
+    <span class="chip-sub"   id="chip-wind-sub">awaiting OWM</span>
+  </div>
+</div>
+
 <section class="stage" id="stage">
   <div class="stage-bg"></div>
   <div id="stage-map" class="stage-map"></div>
@@ -1150,24 +1172,6 @@
   <div class="stage-watermark">⛳ KAM CADDY</div>
   <div class="rec-dot"></div>
   <div class="achievement-flash" id="achievement-flash"></div>
-
-  <div class="chips">
-    <div class="chip">
-      <span class="chip-label">HOLE</span>
-      <span class="chip-value" id="chip-hole">—</span>
-      <span class="chip-sub"   id="chip-hole-sub">no course</span>
-    </div>
-    <div class="chip">
-      <span class="chip-label">DIST PIN</span>
-      <span class="chip-value" id="chip-dist">—</span>
-      <span class="chip-sub"   id="chip-dist-sub">m / yds</span>
-    </div>
-    <div class="chip">
-      <span class="chip-label">WIND</span>
-      <span class="chip-value" id="chip-wind">—</span>
-      <span class="chip-sub"   id="chip-wind-sub">awaiting OWM</span>
-    </div>
-  </div>
 
   <div class="cad-av cad-av-eagle" id="av-eagle">
     <div class="cad-av-stripe"></div>
