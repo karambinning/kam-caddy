@@ -1574,6 +1574,9 @@
         <div class="wx-cell"><div class="wx-label">CLOUDS</div><div class="wx-value" id="wx-cloud">—</div><div class="wx-sub" id="wx-cond">—</div></div>
       </div>
       <div class="wx-call" id="wx-call">live wind · Open-Meteo (free, no key) · paste an OWM key in ⚙ KEYS to override</div>
+      <div class="controls" style="margin-top:8px;">
+        <button class="ctl amber" id="btn-wx-refresh" style="font-size:9px;">↻ REFRESH WIND · for current hole</button>
+      </div>
     </section>
 
     <section class="panel panel-clubs">
@@ -3353,13 +3356,20 @@ const updatePos = (pos) => {
   // If you're miles away (e.g. testing at home), don't claim you're "at hole X".
   const ON_HOLE_THRESHOLD_M = 300;
   if (minD > ON_HOLE_THRESHOLD_M) {
-    // Off course — clear chips, hint distance to course
-    $('chip-hole').textContent     = '—';
-    $('chip-hole-sub').textContent = `off course · ${Math.round(minD)}m to nearest green (H${nearest.n})`;
-    $('chip-dist').textContent     = '—';
-    $('chip-dist-sub').textContent = 'walk to a tee';
-    state.distM = null;
-    // Keep state.hole as whatever was set manually (preview / hole-nav). Don't overwrite.
+    // Off course — keep whatever hole was set manually (preview / hole-nav).
+    if (state.hole?.green) {
+      // Show distance from user to the active hole's green
+      const dActive = haversineM(state.pos.lat, state.pos.lon, state.hole.green.lat, state.hole.green.lon);
+      state.distM = dActive;
+      $('chip-dist').textContent     = Math.round(dActive) + 'm';
+      $('chip-dist-sub').textContent = `to H${state.hole.n} · off course`;
+    } else {
+      $('chip-hole').textContent     = '—';
+      $('chip-hole-sub').textContent = `off course · ${(minD/1000).toFixed(1)}km from H${nearest.n}`;
+      $('chip-dist').textContent     = '—';
+      $('chip-dist-sub').textContent = 'pick a hole · ◂/▸';
+      state.distM = null;
+    }
     persist();
     return;
   }
@@ -3491,6 +3501,13 @@ const previewHole = (n) => {
     state.distM = d;
     $('chip-dist').textContent     = d + 'm';
     $('chip-dist-sub').textContent = Math.round(d * 1.094) + ' yds';
+  } else {
+    // No GPS yet — show measured tee→green for the hole as a baseline
+    if (h.tee && h.green) {
+      const teeg = haversineM(h.tee.lat, h.tee.lon, h.green.lat, h.green.lon);
+      $('chip-dist').textContent     = Math.round(teeg) + 'm';
+      $('chip-dist-sub').textContent = 'tee→green · no GPS';
+    }
   }
   renderIntel(h, d); feedAdd('hole', `H${h.n} ${h.name} · selected`);
   if (h.green) stageFocusHole(h);
@@ -3498,6 +3515,8 @@ const previewHole = (n) => {
   focusFocalHole();
   renderMapKeyStatus();
   refreshClubGridStates();
+  // Fetch wind for THIS hole · works regardless of where you are
+  fetchWindThenEagle(true);
   persist();
 };
 $('hole-prev').addEventListener('click', () => { const cur = state.previewHole || state.hole?.n || 1; previewHole(cur === 1 ? 18 : cur - 1); });
@@ -3528,18 +3547,21 @@ const fetchOpenMeteo = async (lat, lon) => {
   };
 };
 
-const fetchWindThenEagle = async () => {
-  if (!state.pos || !state.hole) return;
-  if (Date.now() - state.lastWindMs < 120000 && state.wind) { deliverEagle(); return; }
+const fetchWindThenEagle = async (force = false) => {
+  // Fetch wind for the ACTIVE HOLE'S location (not your GPS) — works on or off course.
+  // If a hole is active but no green coords, fall back to user GPS, else clubhouse coords.
+  const lat = state.hole?.green?.lat ?? state.hole?.tee?.lat ?? state.pos?.lat ?? 52.71485;
+  const lon = state.hole?.green?.lon ?? state.hole?.tee?.lon ?? state.pos?.lon ?? -1.06426;
+  if (!force && Date.now() - state.lastWindMs < 120000 && state.wind) { deliverEagle(); return; }
   const owm = localStorage.getItem('caddy.owm.key');
   try {
     let j;
     if (owm) {
-      const r = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${state.pos.lat}&lon=${state.pos.lon}&appid=${owm}&units=metric`);
+      const r = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${owm}&units=metric`);
       if (r.ok) { j = await r.json(); j._source = 'openweather'; }
-      else { feedAdd('wx', 'OWM HTTP ' + r.status + ' · falling back to Open-Meteo'); j = await fetchOpenMeteo(state.pos.lat, state.pos.lon); }
+      else { feedAdd('wx', 'OWM HTTP ' + r.status + ' · falling back to Open-Meteo'); j = await fetchOpenMeteo(lat, lon); }
     } else {
-      j = await fetchOpenMeteo(state.pos.lat, state.pos.lon);
+      j = await fetchOpenMeteo(lat, lon);
     }
     state.owmRaw = j;
     const ms = j?.wind?.speed || 0, gust = j?.wind?.gust || 0;
@@ -3774,13 +3796,19 @@ const renderScorecard = () => {
   const ends = state.holeEnds;
   if (ends.length === 0) { $r.innerHTML = '<div class="score-empty">no holes ended yet</div>'; return; }
   let totalShots = 0, totalPar = 0;
-  ends.forEach(e => {
+  ends.forEach((e, idx) => {
     totalShots += e.shots; totalPar += e.par;
     const cls = e.diff < 0 ? 'under' : (e.diff > 0 ? 'over' : '');
     const row = document.createElement('div');
     row.className = 'score-row';
     row.innerHTML = `<span>H${e.n}</span><span>${e.par}</span><span>${e.shots}</span><span class="score-clubs">${escapeHtml(e.clubs || '—')}</span><span class="score-diff ${cls}">${e.diff > 0 ? '+'+e.diff : e.diff}</span>`;
     $r.appendChild(row);
+    if (e.aiNote) {
+      const note = document.createElement('div');
+      note.style.cssText = 'padding: 4px 0 6px 12px; font-size: 9px; color: var(--eagle); text-shadow: 0 0 4px rgba(251,191,36,0.4); line-height: 1.5; border-bottom: 1px dashed var(--bg-line); font-style: italic;';
+      note.textContent = '🦅 ' + e.aiNote;
+      $r.appendChild(note);
+    }
   });
   const td = totalShots - totalPar;
   const t = document.createElement('div');
@@ -4288,6 +4316,12 @@ $('hdr-rec').addEventListener('click', async () => {
   } catch (e) { toast('record: ' + e.message, '#ef4444'); }
 });
 $('hdr-live').addEventListener('click', () => { setMode('course'); document.querySelector('.scroll').scrollTop = 0; });
+$('btn-wx-refresh').addEventListener('click', () => {
+  if (!state.hole) { toast('select a hole first', '#f59e0b'); return; }
+  toast('fetching wind for H' + state.hole.n + '…', '#22c55e');
+  state.lastWindMs = 0; // bust cache
+  fetchWindThenEagle(true);
+});
 
 // ── Voice IN · Web Speech API ────────────────────────────────
 let recognition = null;
@@ -4647,6 +4681,17 @@ setInterval(renderDataStatus, 2500);
 
 // Boot
 setMode(state.mode || 'course');
+// Initial wind fetch · works whether you're at the course or testing from anywhere
+if (state.hole) setTimeout(() => fetchWindThenEagle(true), 600);
+else if (currentCourse()?.holes.find(h => h.green)) {
+  // Default to hole 1 wind so the WEATHER panel populates immediately
+  const h1 = currentCourse().holes.find(h => h.n === 1) || currentCourse().holes[0];
+  if (h1?.green) {
+    state.hole = h1;
+    state.holeStartTs = state.holeStartTs || Date.now();
+    setTimeout(() => { fetchWindThenEagle(true); renderIntel(h1, null); }, 600);
+  }
+}
 renderFeed(); renderAnalysis(); renderScorecard();
 renderCoursePanel(); buildClubGrid('course-clubs');
 renderMapKeyStatus();
