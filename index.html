@@ -994,6 +994,135 @@
     font-size: 10px; letter-spacing: 2px; font-weight: 700;
   }
   .pin-foot button.amber { border-color: var(--amber); color: var(--amber); }
+
+  /* ── MOBILE TIGHT-UP · narrow phones ─────────────────────────── */
+  @media (max-width: 480px) {
+    .hdr { padding: 7px 8px; gap: 4px; }
+    .hdr-title { font-size: 10px; letter-spacing: 2px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .hdr-btn { padding: 5px 6px; font-size: 8px; letter-spacing: 1px; }
+    .mode-btn { padding: 9px 3px; font-size: 8.5px; letter-spacing: 1.5px; }
+    .mode-btn .glyph { font-size: 16px; }
+
+    .stage { height: clamp(220px, 38vh, 300px); }
+    .chips { top: 8px; left: 8px; right: 8px; gap: 4px; }
+    .chip { padding: 5px 4px 6px; }
+    .chip-value { font-size: 13px; }
+    .chip-label, .chip-sub { font-size: 7px; letter-spacing: 1px; }
+
+    .cad-av { font-size: 11px; }
+    .cad-av-eagle, .cad-av-birdie { bottom: 68px; }
+    .cad-av-eagle  { left: 8px; }
+    .cad-av-birdie { right: 8px; }
+    .cad-av-body { padding: 4px 8px; gap: 3px; }
+    .cad-av-code { font-size: 13px; letter-spacing: 2px; }
+    .cad-av-name { font-size: 6.5px; letter-spacing: 1px; }
+    .cad-av-state { font-size: 6px; letter-spacing: 1px; }
+    .cad-av-bars { height: 8px; }
+
+    .stage-actions { bottom: 60px; gap: 5px; }
+    .stage-arm, .stage-talk { padding: 7px 10px; font-size: 9px; letter-spacing: 1.5px; }
+
+    .caption { padding: 6px 88px 10px; font-size: 10px; min-height: 50px; }
+
+    .panel { margin: 8px; }
+    .panel-head { padding: 7px 10px; }
+    .panel-head .ph-title { font-size: 9px; letter-spacing: 2px; }
+    .panel-head .ph-sub   { font-size: 7px; letter-spacing: 1px; }
+    .panel-body { padding: 9px 10px; font-size: 11px; }
+
+    .intel-grid { grid-template-columns: 70px 1fr; gap: 5px 10px; }
+    .intel-grid dt { font-size: 8px; }
+    .intel-grid dd { font-size: 11px; }
+
+    .ask-row { padding: 8px 10px; gap: 5px; }
+    .ask-row input { padding: 9px; font-size: 12px; }
+    .ask-send { padding: 0 10px; font-size: 10px; }
+    .ask-quick { padding: 0 10px 8px; gap: 4px; }
+    .ask-quick button { padding: 4px 7px; font-size: 8px; }
+
+    .wx-grid .wx-cell { padding: 7px 5px; }
+    .wx-label { font-size: 7px; }
+    .wx-value { font-size: 13px; }
+    .wx-sub   { font-size: 7px; }
+
+    #map { height: clamp(340px, 58vh, 520px); }
+    .map-toggle { padding: 5px 10px 6px; }
+    .map-toggle button { padding: 6px 4px; font-size: 8px; letter-spacing: 1.5px; }
+
+    .start-btn { padding: 14px; font-size: 12px; letter-spacing: 4px; margin: 10px; width: calc(100% - 20px); }
+    .ctl { padding: 11px 6px; font-size: 10px; letter-spacing: 2px; }
+    .controls { gap: 6px; margin: 0 10px 8px; }
+
+    .course-row { padding: 8px 10px; gap: 6px; }
+    .course-select { padding: 9px 26px 9px 10px; font-size: 11px; letter-spacing: 1px; }
+    .course-new { padding: 9px; font-size: 10px; letter-spacing: 1px; }
+    .course-meta-row { padding: 0 10px 6px; font-size: 9px; }
+    .course-pin-btn { margin: 0 10px 10px; width: calc(100% - 20px); padding: 11px; font-size: 10px; letter-spacing: 2px; }
+
+    .club-grid { grid-template-columns: repeat(4, 1fr); gap: 5px; padding: 8px 10px; }
+    .club-btn { padding: 10px 3px; font-size: 9px; }
+    .club-name { font-size: 11px; }
+    .club-dist { font-size: 8px; }
+    .club-recommend { margin: 0 10px 8px; padding: 6px 8px; font-size: 9px; letter-spacing: 1px; }
+
+    .feed-list { max-height: 200px; }
+    .feed-row { grid-template-columns: 44px 52px 1fr; gap: 6px; padding: 4px 10px; }
+    .feed-time, .feed-tag { font-size: 8px; }
+    .feed-text { font-size: 10px; }
+
+    .analysis-grid .ana-cell { padding: 7px 8px; }
+    .ana-label { font-size: 7px; }
+    .ana-value { font-size: 14px; }
+    .ana-sub   { font-size: 8px; }
+
+    .theory-card { padding: 10px; font-size: 11px; min-height: 50px; }
+    .theory-row { padding: 5px 10px 8px; }
+    .theory-row .ctl { padding: 7px 5px; font-size: 8px; letter-spacing: 1.5px; }
+
+    .scorecard { padding: 6px 10px; font-size: 10px; }
+    .score-row { grid-template-columns: 36px 36px 44px 1fr 44px; gap: 5px; padding: 3px 0; }
+
+    .glasses-note { padding: 6px 10px 8px; font-size: 9px; }
+
+    .modal { padding: 14px; max-width: 100%; }
+    .modal h2 { font-size: 10px; letter-spacing: 3px; }
+    .modal label { font-size: 8px; letter-spacing: 1.5px; }
+    .modal input { padding: 9px; font-size: 12px; }
+
+    .bag-row { grid-template-columns: 70px 56px 24px 32px; gap: 5px; }
+    .bag-row .bag-name-input, .bag-row .bag-avg-input { padding: 5px 6px; font-size: 11px; }
+    .bag-row .bag-suffix { font-size: 8px; }
+    .bag-row .bag-del { padding: 5px 0; font-size: 11px; }
+
+    .pin-hdr { padding: 8px 10px; }
+    .pin-hdr .title { font-size: 10px; letter-spacing: 2px; }
+    .pin-info { padding: 6px 10px; font-size: 9px; }
+    .pin-mode button { padding: 8px; font-size: 9px; letter-spacing: 1.5px; }
+    .pin-foot { padding: 8px 10px; gap: 5px; }
+    .pin-foot button { padding: 10px 3px; font-size: 9px; letter-spacing: 1.5px; }
+
+    .garden-viewport { height: 240px; margin: 8px 10px; width: calc(100% - 20px); }
+    .mic-meter { height: 12px; }
+
+    .toast { font-size: 9px; padding: 9px 14px; bottom: 16px; }
+
+    .kam-zoom-btn { width: 32px; height: 32px; font-size: 14px; }
+    .kam-zoom-btn.fit { font-size: 12px; }
+    .kam-key-overlay { font-size: 7.5px; padding: 5px 7px; max-width: 180px; }
+    .kam-key-toggle { font-size: 8px; }
+    .kam-key-body { gap: 2px 6px; }
+  }
+
+  /* Smallest screens · iPhone SE / iPhone 13 mini */
+  @media (max-width: 380px) {
+    .hdr-title { font-size: 9px; letter-spacing: 1.5px; }
+    .hdr-btn { padding: 5px 5px; font-size: 7px; letter-spacing: 0.5px; }
+    .mode-btn { font-size: 7.5px; letter-spacing: 1px; padding: 8px 2px; }
+    .stage-arm, .stage-talk { padding: 6px 9px; font-size: 8px; letter-spacing: 1px; }
+    .cad-av-name, .cad-av-state { display: none; }
+    .cad-av-body { padding: 4px 6px; }
+    .caption { padding: 6px 64px 8px; font-size: 9px; min-height: 44px; }
+  }
 </style>
 </head>
 <body>
