@@ -124,6 +124,26 @@
     opacity: 0; transition: opacity .4s;
   }
   .stage-map.live { opacity: 0.95; }
+  /* Glasses POV · WebRTC video stream from VisionClaw / Meta DAT SDK */
+  .stage-glasses {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: none;
+    z-index: 2;
+    background: #000;
+  }
+  .stage.glasses-live .stage-glasses { display: block; }
+  .stage.glasses-live .stage-map     { opacity: 0.04; }
+  .stage-glasses-badge {
+    position: absolute; top: 12px; right: 14px; z-index: 6;
+    padding: 4px 8px; font-size: 8px; letter-spacing: 2px; font-weight: 700;
+    background: var(--glasses); color: var(--bg);
+    box-shadow: 0 0 10px var(--glasses);
+    display: none;
+    animation: livePulse 2.4s ease-in-out infinite;
+  }
+  .stage.glasses-live .stage-glasses-badge { display: block; }
   .stage-grid {
     position: absolute; inset: 0;
     background-image:
@@ -943,12 +963,29 @@
   .diag-result .ok   { color: var(--green); }
   .diag-result .miss { color: var(--warn);  }
 
-  /* Round export modal */
-  .export-modal { border-color: var(--ask); max-width: 460px; }
-  .export-modal h2 { color: var(--ask); text-shadow: 0 0 6px var(--ask); }
-  .export-card-section { margin: 10px 0 6px; text-align: center; }
-  .export-card-section img { width: 100%; height: auto; border: 1px solid var(--bg-line); display: block; box-shadow: 0 0 14px rgba(45,212,191,0.25); }
-  .export-card-hint { font-size: 9px; color: var(--ask); margin-top: 8px; letter-spacing: 1.5px; line-height: 1.5; }
+  /* Round export modal · IMAGE-FIRST for iOS save-to-photos */
+  .export-modal { border-color: var(--ask); max-width: 420px; }
+  .export-modal h2 { color: var(--ask); text-shadow: 0 0 6px var(--ask); margin-bottom: 8px; }
+  .export-instructions {
+    padding: 10px 12px; margin: 6px 0 12px;
+    background: rgba(45,212,191,0.10);
+    border: 1px solid var(--ask);
+    font-size: 11px; line-height: 1.6;
+    color: var(--text);
+  }
+  .export-instructions b { color: var(--ask); letter-spacing: 1.5px; }
+  .export-card-section { margin: 0 0 12px; text-align: center; }
+  .export-card-section img {
+    width: 100%; max-width: 280px;
+    height: auto;
+    max-height: 50vh;
+    object-fit: contain;
+    margin: 0 auto;
+    display: block;
+    border: 2px solid var(--ask);
+    box-shadow: 0 0 16px rgba(45,212,191,0.5);
+  }
+  .export-card-hint { font-size: 10px; color: var(--ask); margin-top: 10px; letter-spacing: 1.5px; line-height: 1.5; text-align: center; }
   .export-card-hint b { color: var(--text); }
   .export-modal pre {
     background: var(--bg-3); border: 1px solid var(--bg-line);
@@ -1229,6 +1266,8 @@
 <section class="stage" id="stage">
   <div class="stage-bg"></div>
   <div id="stage-map" class="stage-map"></div>
+  <video id="stage-glasses" class="stage-glasses" autoplay playsinline muted></video>
+  <div class="stage-glasses-badge">🕶 GLASSES POV · LIVE</div>
   <div class="stage-grid"></div>
   <div class="stage-vignette"></div>
   <div class="stage-watermark">⛳ KAM CADDY</div>
@@ -1453,10 +1492,29 @@
         <span class="ph-sub" id="glasses-status">○ NOT PAIRED</span>
       </div>
       <div class="glasses-note">
-        <b>Audio out · works today:</b> pair Ray-Bans via iOS Bluetooth → Eagle, Birdie + browser TTS auto-route to the glasses speakers. Spotify ducks while voices play.<br>
-        <b>Mic in · works today:</b> when paired, the glasses mic is iOS's active input. Tap ◉ ASK on the live stage and speak — Web Speech transcribes via the glasses mic, response voiced back through the glasses.<br>
-        <b>POV camera · next pass:</b> live POV streaming needs the Meta Device Access SDK / VisionClaw fork. Until then the stage uses the satellite map. Garden + Putting modes use the <i>phone</i> back-camera for chip + green vision (higher framerate than the SDK gives anyway).<br>
-        <b>Native record:</b> the glasses' own side-button records clips into Meta View regardless. Use it any time for social.
+        <b>Audio out · works today:</b> pair Ray-Bans via iOS Bluetooth → Eagle, Birdie + browser TTS auto-route to the glasses speakers.<br>
+        <b>Mic in · works today:</b> tap ◉ ASK CADDY, speak through the glasses. Web Speech transcribes via the glasses mic.<br>
+        <b>POV camera · works once VisionClaw is set up:</b> stream the glasses' world-facing camera straight onto the live stage at the top of this app. Setup below.<br>
+        <b>Native record:</b> the glasses' own side-button records clips into Meta View at any time.
+      </div>
+      <div style="padding: 6px 12px 4px;">
+        <div style="font-size:9px; letter-spacing:2px; color:var(--glasses); margin-top:6px; text-shadow:0 0 4px var(--glasses);">🕶 GLASSES POV · LIVE STAGE</div>
+      </div>
+      <div style="padding: 0 12px 8px;">
+        <label style="display:block; font-size:8px; letter-spacing:1.5px; color:var(--dim); margin:6px 0 3px;">VISIONCLAW SIGNALING URL <span style="color:var(--dim); font-weight:400;">(ws://M1:3000 or https://…)</span></label>
+        <input id="glasses-signal-url" type="text" placeholder="ws://100.109.39.81:3000" autocomplete="off" style="width:100%; padding:8px; background:var(--bg-3); border:1px solid var(--bg-line); color:var(--text); font-family:inherit; font-size:11px;">
+        <label style="display:block; font-size:8px; letter-spacing:1.5px; color:var(--dim); margin:8px 0 3px;">ROOM CODE <span style="color:var(--dim); font-weight:400;">(6 chars from VisionClaw app)</span></label>
+        <input id="glasses-room-code" type="text" placeholder="ABC123" maxlength="6" autocomplete="off" style="width:100%; padding:8px; background:var(--bg-3); border:1px solid var(--bg-line); color:var(--text); font-family:inherit; font-size:14px; letter-spacing:6px; text-align:center; text-transform:uppercase;">
+      </div>
+      <div class="controls">
+        <button class="ctl ask" id="btn-glasses-connect" style="font-size:10px;">▸ CONNECT POV</button>
+        <button class="ctl warn" id="btn-glasses-disconnect" style="font-size:10px;">✕ DISCONNECT</button>
+      </div>
+      <div id="glasses-pov-status" style="padding:0 12px 10px; font-size:9px; letter-spacing:1.5px; color:var(--dim); line-height:1.55;">
+        ○ POV not connected · build VisionClaw on your iPhone (sideload via Xcode), pair the glasses, start a stream → paste the signaling URL + 6-char room code above
+      </div>
+      <div style="padding: 6px 12px 4px; border-top: 1px dashed var(--bg-line);">
+        <div style="font-size:9px; letter-spacing:2px; color:var(--dim); margin-top:6px;">AUDIO OUT</div>
       </div>
       <div style="padding: 4px 12px 0;">
         <div style="font-size:9px; letter-spacing:2px; color:var(--dim); margin-top:4px;">AUDIO OUT</div>
@@ -1582,23 +1640,33 @@
   </div>
 </div>
 
-<!-- ROUND EXPORT modal -->
+<!-- ROUND EXPORT modal · image-first for iOS save-to-photos -->
 <div class="modal-bg" id="export-modal">
   <div class="modal export-modal">
-    <h2>▾ ROUND EXPORT</h2>
+    <h2>▾ ROUND CARD</h2>
+    <div class="export-instructions">
+      <b>📷 SAVE TO PHOTOS:</b> long-press the image → tap "Save to Photos"<br>
+      <b>↗ SHARE:</b> tap SHARE for iOS share sheet (Notes, Mail, Messages, anywhere)<br>
+      <b>↗ FULL SIZE:</b> tap FULL SIZE to open the card on its own page
+    </div>
     <div class="export-card-section">
       <img id="export-card-img" alt="round card">
-      <div class="export-card-hint"><b>long-press</b> the image → <b>Save to Photos</b> (saves to camera roll) · or use SHARE for iOS share sheet</div>
+    </div>
+    <div class="export-card-hint">
+      <b>↑ image above</b> · long-press it now to save
     </div>
     <div class="row" style="margin-top:14px;">
-      <button class="ctl ask" id="export-share">↗ SHARE · iOS</button>
+      <button class="ctl ask" id="export-share">↗ SHARE</button>
+      <button class="ctl" id="export-fullsize">↗ FULL SIZE</button>
+    </div>
+    <div class="row" style="margin-top:8px;">
       <button class="ctl" id="export-copy">📋 COPY MD</button>
+      <button class="ctl warn" id="export-close">CLOSE</button>
     </div>
     <details>
-      <summary>▸ MARKDOWN PREVIEW · scroll · select to copy manually</summary>
+      <summary>▸ markdown body · selectable text</summary>
       <pre id="export-md-preview"></pre>
     </details>
-    <button class="ctl warn" id="export-close" style="margin-top:12px; width:100%;">CLOSE</button>
   </div>
 </div>
 
@@ -3767,6 +3835,101 @@ $('btn-putt-miss').addEventListener('click', () => { state.greenPutts++; $('p-pu
 $('btn-test-audio').addEventListener('click', () => { speakEagleRaw('Audio routing test. If you hear this through your Ray-Ban speakers, the glasses are paired and routing works.'); $('glasses-status').textContent = '◐ AUDIO TESTED'; localStorage.setItem('caddy.glasses.tested', '1'); });
 $('btn-bt-help').addEventListener('click', () => { alert('Pair Meta Ray-Bans:\n\n1. iOS Settings → Bluetooth\n2. Glasses charged + on (Meta View app open if first time)\n3. Tap "Ray-Ban Meta" when listed\n4. Confirm pairing\n5. Return → tap TEST AUDIO\n\nIf audio plays through phone speaker instead:\n· Pull down Control Centre while audio plays → tap the AirPlay/audio icon → pick the glasses\n· Or toggle BT off/on once paired'); });
 
+// ── Glasses POV · WebRTC viewer scaffold (consumes VisionClaw stream) ──
+let glassesPC = null, glassesWS = null, glassesRoom = null;
+const setGlassesPovStatus = (text, color) => {
+  const el = $('glasses-pov-status'); if (!el) return;
+  el.textContent = text;
+  el.style.color = color || 'var(--dim)';
+};
+const disconnectGlassesPOV = () => {
+  if (glassesPC)  { try { glassesPC.close();  } catch(_){} glassesPC = null; }
+  if (glassesWS)  { try { glassesWS.close();  } catch(_){} glassesWS = null; }
+  const v = $('stage-glasses');
+  if (v) { try { v.srcObject = null; } catch(_){} }
+  $('stage').classList.remove('glasses-live');
+  setGlassesPovStatus('○ POV disconnected · build VisionClaw on your iPhone, pair glasses, start stream → paste signaling URL + room code', 'var(--dim)');
+  feedAdd('shot', 'glasses POV disconnected');
+};
+const connectGlassesPOV = async () => {
+  const url  = ($('glasses-signal-url').value || '').trim();
+  const room = ($('glasses-room-code').value || '').trim().toUpperCase();
+  if (!url || !room) { toast('paste signaling URL + 6-char room code first', '#f59e0b'); return; }
+  // Persist for next session
+  localStorage.setItem('caddy.glasses.signal-url', url);
+  localStorage.setItem('caddy.glasses.room', room);
+  glassesRoom = room;
+  setGlassesPovStatus('◐ connecting to ' + url + ' room ' + room + '…', 'var(--amber)');
+  // Best-effort: support ws:// or wss:// directly, or convert http(s) to ws(s)
+  const wsUrl = url.replace(/^http(s?):\/\//, 'ws$1://');
+  try {
+    glassesWS = new WebSocket(wsUrl);
+  } catch (e) {
+    setGlassesPovStatus('✗ WS open failed: ' + e.message, 'var(--warn)');
+    return;
+  }
+  glassesPC = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+  glassesPC.ontrack = (e) => {
+    const v = $('stage-glasses');
+    if (v && e.streams && e.streams[0]) {
+      v.srcObject = e.streams[0];
+      $('stage').classList.add('glasses-live');
+      setGlassesPovStatus('✓ POV LIVE · streaming from glasses', 'var(--glasses)');
+      feedAdd('shot', 'glasses POV live');
+      localStorage.setItem('caddy.glasses.tested', '1');
+    }
+  };
+  glassesPC.onicecandidate = (e) => {
+    if (e.candidate && glassesWS && glassesWS.readyState === WebSocket.OPEN) {
+      try { glassesWS.send(JSON.stringify({ type: 'ice', candidate: e.candidate, room })); } catch(_) {}
+    }
+  };
+  glassesPC.onconnectionstatechange = () => {
+    if (!glassesPC) return;
+    const s = glassesPC.connectionState;
+    if (s === 'failed' || s === 'disconnected' || s === 'closed') {
+      setGlassesPovStatus('✗ peer connection ' + s + ' · check VisionClaw stream + room', 'var(--warn)');
+      $('stage').classList.remove('glasses-live');
+    }
+  };
+  glassesWS.onopen = () => {
+    setGlassesPovStatus('◐ joined signaling · awaiting offer from VisionClaw…', 'var(--amber)');
+    try { glassesWS.send(JSON.stringify({ type: 'join', room, role: 'viewer' })); } catch(_) {}
+  };
+  glassesWS.onmessage = async (msg) => {
+    let data; try { data = JSON.parse(msg.data); } catch (_) { return; }
+    if (data.type === 'offer' && data.sdp) {
+      try {
+        await glassesPC.setRemoteDescription(new RTCSessionDescription(data.sdp));
+        const ans = await glassesPC.createAnswer();
+        await glassesPC.setLocalDescription(ans);
+        glassesWS.send(JSON.stringify({ type: 'answer', sdp: ans, room }));
+      } catch (e) { setGlassesPovStatus('✗ SDP error: ' + e.message, 'var(--warn)'); }
+    } else if (data.type === 'ice' && data.candidate) {
+      try { await glassesPC.addIceCandidate(new RTCIceCandidate(data.candidate)); } catch (_) {}
+    } else if (data.type === 'error') {
+      setGlassesPovStatus('✗ signaling error: ' + (data.message || 'unknown'), 'var(--warn)');
+    }
+  };
+  glassesWS.onerror = (e) => setGlassesPovStatus('✗ WS error · is VisionClaw signaling server reachable at ' + url + '?', 'var(--warn)');
+  glassesWS.onclose = () => {
+    if ($('stage').classList.contains('glasses-live')) {
+      // already streaming when WS closed — that's actually ok for some signaling impls
+    } else {
+      setGlassesPovStatus('○ signaling closed · re-tap CONNECT POV', 'var(--dim)');
+    }
+  };
+};
+$('btn-glasses-connect').addEventListener('click', connectGlassesPOV);
+$('btn-glasses-disconnect').addEventListener('click', disconnectGlassesPOV);
+// Restore last URL/room
+{
+  const u = localStorage.getItem('caddy.glasses.signal-url');
+  const r = localStorage.getItem('caddy.glasses.room');
+  if (u) $('glasses-signal-url').value = u;
+  if (r) $('glasses-room-code').value = r;
+}
+
 // ── Glasses mic test · level meter ────────────────────────────
 let micTestStream = null, micTestAnalyser = null, micTestRaf = null;
 let micTestPeak = 0, micTestPeakDecay = 0;
@@ -4031,6 +4194,15 @@ const showExportModal = (md, cardImgUrl) => {
   $('export-modal').classList.add('open');
 };
 $('export-close').addEventListener('click', () => $('export-modal').classList.remove('open'));
+$('export-fullsize').addEventListener('click', () => {
+  const src = $('export-card-img').src;
+  if (!src) return;
+  // Open the data URL in a new tab — full-screen view, easy long-press save on iOS
+  const w = window.open('', '_blank');
+  if (!w) { toast('popup blocked · long-press image instead', '#f59e0b'); return; }
+  w.document.write(`<!doctype html><html><head><title>KAM Caddy · Round Card</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;padding:0;background:#000;color:#fff;font-family:monospace;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:12px}img{max-width:100%;height:auto;display:block}p{font-size:11px;letter-spacing:2px;text-align:center;padding:0 16px}</style></head><body><img src="${src}"><p>long-press image → Save to Photos</p></body></html>`);
+  w.document.close();
+});
 $('export-copy').addEventListener('click', async () => {
   const md = $('export-md-preview').textContent;
   try { await navigator.clipboard.writeText(md); toast('markdown copied', '#22c55e'); }
