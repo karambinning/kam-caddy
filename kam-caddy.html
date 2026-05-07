@@ -1,0 +1,3636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#070e1c">
+<title>KAM CADDY</title>
+<link rel="preconnect" href="https://api.anthropic.com">
+<link rel="preconnect" href="https://api.elevenlabs.io">
+<link rel="preconnect" href="https://api.openweathermap.org">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    --bg:        #070e1c;
+    --bg-2:      #0a1422;
+    --bg-3:      #04080f;
+    --bg-line:   #1e293b;
+    --green:     #22c55e;
+    --green-d:   #16a34a;
+    --eagle:     #fbbf24;
+    --birdie:    #ec4899;
+    --glasses:   #a78bfa;
+    --intel:     #38bdf8;
+    --theory:    #f97316;
+    --ask:       #2dd4bf;
+    --course:    #84cc16;
+    --bag:       #a3e635;
+    --text:      #e5e7eb;
+    --dim:       #64748b;
+    --warn:      #ef4444;
+    --amber:     #f59e0b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none; -webkit-user-select: none; }
+  html, body { height: 100%; overscroll-behavior: contain; -webkit-font-smoothing: antialiased; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'IBM Plex Mono', 'SF Mono', Menlo, monospace;
+    font-size: 14px; line-height: 1.4;
+    height: 100vh; height: 100dvh; height: -webkit-fill-available;
+    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  button { font-family: inherit; cursor: pointer; border: none;
+           transition: transform .08s linear, background .12s linear, box-shadow .12s linear; }
+  button:active { transform: scale(0.96); }
+  input, textarea, select { font-family: inherit; user-select: text; -webkit-user-select: text; }
+
+  .hdr {
+    flex-shrink: 0;
+    display: flex; align-items: center; gap: 5px;
+    padding: 8px 10px;
+    background: linear-gradient(180deg, var(--bg-2), var(--bg));
+    border-bottom: 2px solid var(--green);
+  }
+  .hdr-title {
+    flex: 1; font-size: 11px; font-weight: 700; letter-spacing: 3px;
+    color: var(--green); text-shadow: 0 0 10px var(--green);
+    white-space: nowrap; overflow: hidden;
+  }
+  .hdr-btn {
+    padding: 6px 7px; background: transparent;
+    border: 1px solid var(--green); color: var(--green);
+    font-size: 9px; letter-spacing: 1.5px; font-weight: 700;
+    flex-shrink: 0;
+  }
+  .hdr-btn.amber { border-color: var(--amber); color: var(--amber); }
+  .hdr-btn.warn  { border-color: var(--warn);  color: var(--warn); }
+  .hdr-btn.bag   { border-color: var(--bag);   color: var(--bag); }
+  .hdr-btn.live  { background: var(--green); color: var(--bg); box-shadow: 0 0 14px var(--green); animation: livePulse 2.4s ease-in-out infinite; }
+  @keyframes livePulse { 0%,100% { opacity:1 } 50% { opacity:.55 } }
+
+  .mode-bar {
+    flex-shrink: 0;
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 1px; padding: 1px; background: var(--green);
+  }
+  .mode-btn {
+    padding: 10px 4px; background: var(--bg-2); color: var(--dim);
+    font-size: 9px; letter-spacing: 2px; font-weight: 700;
+    text-align: center; line-height: 1.2;
+  }
+  .mode-btn .glyph { display: block; font-size: 17px; margin-bottom: 2px; }
+  .mode-btn.active {
+    background: linear-gradient(180deg, var(--green), var(--green-d));
+    color: #fff; text-shadow: 0 0 6px #fff; box-shadow: inset 0 -3px 0 #fff;
+  }
+
+  .stage {
+    flex-shrink: 0; position: relative;
+    height: clamp(240px, 40vh, 340px);
+    background: #000; overflow: hidden;
+    border-bottom: 2px solid var(--green);
+  }
+  .stage-bg {
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse at 30% 20%, rgba(34,197,94,0.16), transparent 55%),
+      radial-gradient(ellipse at 70% 80%, rgba(251,191,36,0.10), transparent 55%),
+      linear-gradient(180deg, #0a1422 0%, #04080f 100%);
+    animation: bgDrift 22s ease-in-out infinite;
+    z-index: 0;
+  }
+  @keyframes bgDrift {
+    0%, 100% { filter: hue-rotate(0deg) saturate(1); }
+    50%      { filter: hue-rotate(8deg) saturate(1.05); }
+  }
+  .stage-map {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    filter: hue-rotate(80deg) saturate(0.7) brightness(0.6) contrast(1.1);
+    z-index: 1;
+    opacity: 0; transition: opacity .4s;
+  }
+  .stage-map.live { opacity: 0.95; }
+  .stage-grid {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(34,197,94,0.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(34,197,94,0.07) 1px, transparent 1px);
+    background-size: 24px 24px;
+    pointer-events: none; z-index: 2;
+  }
+  .stage-vignette {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at center, transparent 35%, rgba(4,8,15,0.65) 100%);
+    pointer-events: none; z-index: 2;
+  }
+  .stage-watermark {
+    position: absolute; left: 12px; top: 12px; z-index: 5;
+    font-size: 9px; letter-spacing: 3px; font-weight: 700;
+    color: var(--green); text-shadow: 0 0 8px var(--green);
+    pointer-events: none;
+    background: rgba(4,8,15,0.55);
+    padding: 4px 8px;
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  }
+  .rec-dot {
+    position: absolute; top: 14px; right: 14px; z-index: 6;
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--warn); box-shadow: 0 0 12px var(--warn);
+    display: none; animation: livePulse 1.2s infinite;
+  }
+  .stage.recording .rec-dot { display: block; }
+  .achievement-flash {
+    position: absolute; inset: 0; z-index: 7; pointer-events: none; opacity: 0;
+    background: radial-gradient(ellipse at center, rgba(251,191,36,0.55), transparent 70%);
+  }
+  .achievement-flash.fire { animation: ach 1.4s ease-out; }
+  @keyframes ach { 0% { opacity: 0; } 20% { opacity: 1; } 100% { opacity: 0; } }
+
+  .chips {
+    position: absolute; top: 50px; left: 10px; right: 10px;
+    display: flex; gap: 6px; pointer-events: none; z-index: 4;
+  }
+  .chip {
+    flex: 1; padding: 6px 6px 7px;
+    background: rgba(4,8,15,0.78);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border: 1px solid var(--green);
+    text-align: center; box-shadow: 0 0 8px rgba(34,197,94,0.25);
+  }
+  .chip-label { font-size: 7px; letter-spacing: 1.5px; color: var(--dim); display: block; }
+  .chip-value { font-size: 14px; font-weight: 700; color: var(--green); text-shadow: 0 0 6px var(--green); line-height: 1.1; }
+  .chip-sub   { font-size: 7px; letter-spacing: 1px; color: var(--dim); }
+
+  .cad-av {
+    position: absolute; z-index: 5;
+    display: flex;
+    background: rgba(4,8,15,0.78);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border: 1px solid var(--bg-line);
+    box-shadow: 0 0 14px rgba(0,0,0,0.45);
+    transition: transform .25s, box-shadow .25s, border-color .25s;
+  }
+  .cad-av-eagle  { left: 10px;  bottom: 76px; border-color: var(--eagle); }
+  .cad-av-birdie { right: 10px; bottom: 76px; border-color: var(--birdie); }
+  .cad-av-eagle.speaking  { box-shadow: 0 0 24px var(--eagle), inset 0 0 8px rgba(251,191,36,0.2); }
+  .cad-av-birdie.speaking { box-shadow: 0 0 24px var(--birdie), inset 0 0 8px rgba(236,72,153,0.2); }
+  .cad-av-stripe { width: 4px; flex-shrink: 0; }
+  .cad-av-eagle  .cad-av-stripe { background: var(--eagle);  box-shadow: 0 0 10px var(--eagle); }
+  .cad-av-birdie .cad-av-stripe { background: var(--birdie); box-shadow: 0 0 10px var(--birdie); }
+  .cad-av-body { padding: 6px 10px 6px 8px; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  .cad-av-row { display: flex; align-items: center; gap: 8px; }
+  .cad-av-code { font-size: 16px; font-weight: 700; letter-spacing: 3px; }
+  .cad-av-eagle  .cad-av-code { color: var(--eagle);  text-shadow: 0 0 8px var(--eagle); }
+  .cad-av-birdie .cad-av-code { color: var(--birdie); text-shadow: 0 0 8px var(--birdie); }
+  .cad-av-meta { display: flex; flex-direction: column; gap: 1px; }
+  .cad-av-name { font-size: 7px; letter-spacing: 1.5px; color: var(--text); font-weight: 700; }
+  .cad-av-state { font-size: 6px; letter-spacing: 1.5px; color: var(--dim); }
+  .cad-av.speaking .cad-av-state { color: currentColor; }
+  .cad-av-eagle.speaking  .cad-av-state { color: var(--eagle); }
+  .cad-av-birdie.speaking .cad-av-state { color: var(--birdie); }
+  .cad-av-bars { display: flex; gap: 2px; align-items: flex-end; height: 10px; }
+  .cad-av-bars span {
+    width: 2px; height: 3px; opacity: 0.35;
+    transition: height 0.08s, opacity 0.08s;
+  }
+  .cad-av-eagle  .cad-av-bars span { background: var(--eagle);  box-shadow: 0 0 4px var(--eagle); }
+  .cad-av-birdie .cad-av-bars span { background: var(--birdie); box-shadow: 0 0 4px var(--birdie); }
+  .cad-av.speaking .cad-av-bars span { animation: barBeat 0.6s ease-in-out infinite; opacity: 0.9; }
+  .cad-av.speaking .cad-av-bars span:nth-child(2) { animation-delay: 0.1s; }
+  .cad-av.speaking .cad-av-bars span:nth-child(3) { animation-delay: 0.2s; }
+  .cad-av.speaking .cad-av-bars span:nth-child(4) { animation-delay: 0.3s; }
+  @keyframes barBeat { 0%, 100% { height: 3px; } 50% { height: 10px; } }
+  .cad-av.thinking::before {
+    content: 'THINKING'; position: absolute; top: -14px; left: 0;
+    font-size: 6px; letter-spacing: 1.5px; font-weight: 700;
+    background: var(--bg-3); padding: 2px 5px;
+    border: 1px solid currentColor;
+  }
+  .cad-av-eagle.thinking::before  { color: var(--eagle); }
+  .cad-av-birdie.thinking::before { color: var(--birdie); right: 0; left: auto; }
+
+  .caption {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    padding: 8px 12px 12px;
+    background: linear-gradient(180deg, transparent, rgba(4,8,15,0.92));
+    font-size: 11px; line-height: 1.4; text-align: center;
+    min-height: 56px;
+    display: flex; align-items: center; justify-content: center;
+    border-top: 1px solid var(--bg-line);
+    transition: color .2s, border-color .2s;
+    color: var(--dim);
+    z-index: 3;
+  }
+  .caption.eagle  { color: var(--eagle);  border-top-color: var(--eagle);  text-shadow: 0 0 6px rgba(251,191,36,0.5); }
+  .caption.birdie { color: var(--birdie); border-top-color: var(--birdie); text-shadow: 0 0 6px rgba(236,72,153,0.5); }
+  .caption.empty  { font-style: italic; }
+
+  .stage-actions {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    bottom: 70px; display: flex; gap: 8px; z-index: 6;
+  }
+  .stage-arm, .stage-talk {
+    padding: 10px 14px;
+    background: rgba(4,8,15,0.85);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border: 2px solid;
+    font-size: 10px; letter-spacing: 3px; font-weight: 700;
+  }
+  .stage-arm  { border-color: var(--green); color: var(--green); text-shadow: 0 0 6px var(--green); box-shadow: 0 0 14px rgba(34,197,94,0.35); }
+  .stage-talk { border-color: var(--ask);   color: var(--ask);   text-shadow: 0 0 6px var(--ask);   box-shadow: 0 0 14px rgba(45,212,191,0.35); }
+  .stage-arm.armed {
+    background: var(--green); color: var(--bg);
+    border-color: var(--green); animation: armPulse 0.9s ease-in-out infinite;
+  }
+  .stage-talk.listening {
+    background: var(--ask); color: var(--bg);
+    animation: armPulse 0.9s ease-in-out infinite;
+  }
+  @keyframes armPulse {
+    0%, 100% { box-shadow: 0 0 18px currentColor, inset 0 0 0 1px currentColor; }
+    50%      { box-shadow: 0 0 32px currentColor, inset 0 0 0 1px #fff; }
+  }
+
+  .scroll {
+    flex: 1; min-height: 0;
+    overflow-y: auto; overflow-x: hidden;
+    overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  }
+  .mode { padding-bottom: 26px; }
+  .mode.hidden { display: none; }
+
+  .panel {
+    margin: 10px;
+    background: var(--bg-3);
+    border: 1px solid var(--bg-line);
+    border-left: 4px solid var(--green);
+  }
+  .panel-head {
+    padding: 8px 12px;
+    display: flex; align-items: baseline; gap: 8px;
+    border-bottom: 1px solid var(--bg-line);
+    background: var(--bg-2);
+  }
+  .panel-head .ph-glyph { font-size: 14px; }
+  .panel-head .ph-title { flex: 1; font-size: 10px; letter-spacing: 3px; font-weight: 700; }
+  .panel-head .ph-sub   { font-size: 8px; letter-spacing: 1.5px; color: var(--dim); }
+  .panel-body { padding: 10px 12px; font-size: 12px; line-height: 1.55; color: var(--text); }
+
+  .panel-course   { border-left-color: var(--course);  } .panel-course   .ph-title { color: var(--course);  text-shadow: 0 0 6px var(--course);  }
+  .panel-intel    { border-left-color: var(--intel);   } .panel-intel    .ph-title { color: var(--intel);   text-shadow: 0 0 6px var(--intel);   }
+  .panel-ask      { border-left-color: var(--ask);     } .panel-ask      .ph-title { color: var(--ask);     text-shadow: 0 0 6px var(--ask);     }
+  .panel-weather  { border-left-color: var(--amber);   } .panel-weather  .ph-title { color: var(--amber);   text-shadow: 0 0 6px var(--amber);   }
+  .panel-map      { border-left-color: var(--green);   } .panel-map      .ph-title { color: var(--green);   text-shadow: 0 0 6px var(--green);   }
+  .panel-clubs    { border-left-color: var(--green);   } .panel-clubs    .ph-title { color: var(--green);   text-shadow: 0 0 6px var(--green);   }
+  .panel-feed     { border-left-color: var(--birdie);  } .panel-feed     .ph-title { color: var(--birdie);  text-shadow: 0 0 6px var(--birdie);  }
+  .panel-analysis { border-left-color: var(--eagle);   } .panel-analysis .ph-title { color: var(--eagle);   text-shadow: 0 0 6px var(--eagle);   }
+  .panel-theory   { border-left-color: var(--theory);  } .panel-theory   .ph-title { color: var(--theory);  text-shadow: 0 0 6px var(--theory);  }
+  .panel-score    { border-left-color: var(--green);   } .panel-score    .ph-title { color: var(--green);   text-shadow: 0 0 6px var(--green);   }
+  .panel-export   { border-left-color: var(--ask);     } .panel-export   .ph-title { color: var(--ask);     text-shadow: 0 0 6px var(--ask);     }
+  .panel-glasses  { border-left-color: var(--glasses); } .panel-glasses  .ph-title { color: var(--glasses); text-shadow: 0 0 6px var(--glasses); }
+
+  .intel-grid { display: grid; grid-template-columns: 80px 1fr; gap: 6px 12px; font-size: 11px; }
+  .intel-grid dt { color: var(--dim); letter-spacing: 1.5px; font-size: 9px; padding-top: 2px; }
+  .intel-grid dd { color: var(--text); }
+  .intel-line    { color: var(--intel); text-shadow: 0 0 6px var(--intel); font-weight: 700; }
+
+  .ask-row { display: flex; gap: 6px; padding: 10px 12px; }
+  .ask-row input {
+    flex: 1; padding: 10px;
+    background: var(--bg-3); border: 1px solid var(--bg-line); color: var(--text);
+    font-size: 12px;
+  }
+  .ask-row input:focus { outline: none; border-color: var(--ask); box-shadow: 0 0 8px var(--ask); }
+  .ask-send {
+    padding: 0 14px; background: var(--bg-3);
+    border: 1px solid var(--ask); color: var(--ask);
+    font-size: 11px; letter-spacing: 2px; font-weight: 700;
+  }
+  .ask-send:active { background: var(--ask); color: var(--bg); }
+  .ask-quick { display: flex; flex-wrap: wrap; gap: 5px; padding: 0 12px 10px; }
+  .ask-quick button {
+    padding: 5px 9px; background: transparent;
+    border: 1px solid var(--bg-line); color: var(--dim);
+    font-size: 9px; letter-spacing: 1px;
+  }
+  .ask-quick button:active { background: var(--ask); color: var(--bg); border-color: var(--ask); }
+
+  /* Course panel — dropdown layout */
+  .course-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 12px;
+  }
+  .course-select {
+    flex: 1; padding: 10px 30px 10px 12px;
+    background: var(--bg-3) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M0 0L5 6L10 0Z' fill='%2384cc16'/></svg>") right 12px center / 10px 6px no-repeat;
+    border: 1px solid var(--course); color: var(--course);
+    font-size: 12px; letter-spacing: 1.5px; font-weight: 700;
+    appearance: none; -webkit-appearance: none;
+  }
+  .course-select:focus { outline: none; box-shadow: 0 0 8px var(--course); }
+  .course-new {
+    padding: 10px; background: var(--bg-3); border: 1px solid var(--course);
+    color: var(--course); font-size: 11px; letter-spacing: 1.5px; font-weight: 700;
+  }
+  .course-meta-row {
+    display: flex; align-items: baseline; gap: 8px;
+    padding: 0 12px 6px;
+    font-size: 10px; letter-spacing: 1px;
+  }
+  .course-meta-row .pinned { color: var(--dim); flex: 1; }
+  .course-meta-row .pinned.ok   { color: var(--course); }
+  .course-meta-row .pinned.warn { color: var(--amber); }
+  .course-meta-row .stat { color: var(--dim); }
+  .course-pin-btn {
+    margin: 0 12px 12px;
+    width: calc(100% - 24px);
+    padding: 12px;
+    background: var(--bg-3); border: 2px solid var(--course); color: var(--course);
+    font-size: 11px; letter-spacing: 2.5px; font-weight: 700;
+  }
+  .course-pin-btn:active { background: var(--course); color: var(--bg); }
+
+  .wx-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--bg-line); }
+  .wx-cell { background: var(--bg-3); padding: 8px; text-align: center; }
+  .wx-label { font-size: 8px; letter-spacing: 1.5px; color: var(--dim); margin-bottom: 2px; }
+  .wx-value { font-size: 14px; font-weight: 700; color: var(--amber); text-shadow: 0 0 5px var(--amber); }
+  .wx-sub   { font-size: 8px; color: var(--dim); margin-top: 1px; }
+  .wx-call  { padding: 8px 12px; font-size: 11px; color: var(--amber); border-top: 1px dashed var(--bg-line); text-shadow: 0 0 6px var(--amber); }
+
+  /* Bigger KAM map · two view modes · filter only the tile layer so overlays keep true colour */
+  #map { height: clamp(380px, 56vh, 600px); background: var(--bg-3); position: relative; }
+  #map.mode-sat .leaflet-tile-pane { filter: hue-rotate(80deg) saturate(0.7) brightness(0.62) contrast(1.12); }
+  #map.mode-kam .leaflet-tile-pane { filter: none; }
+  .leaflet-container { background: var(--bg-3); font-family: 'IBM Plex Mono', monospace; }
+  .leaflet-control-attribution { display: none !important; }
+
+  /* KAM hole-number labels · divIcon contents */
+  .kam-label-host { background: transparent; border: none; }
+  .kam-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 700;
+    text-align: center;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(4, 8, 15, 0.88);
+    backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+    color: var(--green);
+    border: 1px solid var(--green);
+    text-shadow: 0 0 4px var(--green);
+    box-shadow: 0 0 6px rgba(34, 197, 94, 0.4);
+    box-sizing: border-box;
+    pointer-events: auto;
+  }
+  .kam-label-tee {
+    font-size: 8px; letter-spacing: 0.5px;
+    width: 20px; height: 20px;
+    background: rgba(250, 204, 21, 0.22);
+    color: #fde047; border-color: #fde047;
+    text-shadow: 0 0 5px #fde047;
+    box-shadow: 0 0 6px rgba(253, 224, 71, 0.5);
+  }
+  .kam-label-green {
+    font-size: 11px; letter-spacing: 0.5px;
+    width: 26px; height: 26px;
+    background: rgba(132, 204, 22, 0.18);
+    color: var(--bag); border-color: var(--bag);
+    text-shadow: 0 0 5px var(--bag);
+    box-shadow: 0 0 8px rgba(163, 230, 53, 0.5);
+  }
+  .kam-label-green.current {
+    background: rgba(251, 191, 36, 0.25);
+    color: var(--eagle); border-color: var(--eagle);
+    text-shadow: 0 0 6px var(--eagle);
+    box-shadow: 0 0 14px var(--eagle);
+    transform: scale(1.15);
+  }
+  /* Par-tier accent ring on green badge */
+  .kam-label-green.par-3 { box-shadow: 0 0 8px rgba(56, 189, 248, 0.5), inset 0 0 0 2px #38bdf8aa; }
+  .kam-label-green.par-5 { box-shadow: 0 0 8px rgba(245, 158, 11, 0.5), inset 0 0 0 2px #f59e0baa; }
+
+  /* KAM custom zoom controls (Command.html pattern) */
+  .kam-zoom {
+    position: absolute; right: 10px; bottom: 14px; z-index: 400;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .kam-zoom-btn {
+    width: 34px; height: 34px;
+    background: rgba(4, 8, 15, 0.93);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    border: 1px solid var(--green); color: var(--green);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 16px; font-weight: 700;
+    cursor: pointer; padding: 0;
+    text-shadow: 0 0 6px var(--green);
+    box-shadow: 0 0 8px rgba(34,197,94,0.35);
+    transition: transform .08s, background .15s, box-shadow .15s;
+  }
+  .kam-zoom-btn:active { transform: scale(0.94); background: var(--green); color: var(--bg); }
+  .kam-zoom-btn:hover  { box-shadow: 0 0 14px rgba(34,197,94,0.7); }
+  .kam-zoom-btn.fit { font-size: 13px; }
+
+  /* Distance ruler line */
+  .kam-dist-label {
+    background: rgba(4, 8, 15, 0.92);
+    border: 1px solid var(--eagle);
+    color: var(--eagle); font-weight: 700;
+    font-size: 9px; letter-spacing: 1.5px;
+    padding: 3px 7px;
+    text-shadow: 0 0 4px var(--eagle);
+    box-shadow: 0 0 6px rgba(251,191,36,0.4);
+    white-space: nowrap;
+  }
+
+  /* In-map tactical legend overlay (collapsible, bottom-left) */
+  .kam-key-overlay {
+    background: rgba(4, 8, 15, 0.90);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border: 1px solid var(--green);
+    padding: 6px 9px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8px; letter-spacing: 0.5px;
+    color: var(--text);
+    box-shadow: 0 0 10px rgba(34,197,94,0.35);
+    margin-bottom: 8px !important;
+    margin-left: 8px !important;
+    max-width: 230px;
+  }
+  .kam-key-toggle {
+    cursor: pointer; color: var(--green);
+    font-weight: 700; letter-spacing: 2px; font-size: 9px;
+    text-shadow: 0 0 5px var(--green);
+    user-select: none;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px;
+  }
+  .kam-key-toggle .kam-key-arrow { font-size: 8px; opacity: 0.7; }
+  .kam-key-body {
+    margin-top: 7px;
+    padding-top: 7px;
+    border-top: 1px dashed rgba(34,197,94,0.35);
+    display: grid; grid-template-columns: auto auto;
+    column-gap: 14px; row-gap: 5px;
+  }
+  .kam-key-overlay.collapsed .kam-key-body { display: none; }
+  .kam-key-row { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .kam-key-row span:last-child { color: var(--dim); letter-spacing: 0.8px; font-size: 7.5px; }
+  .ks { flex-shrink: 0; box-sizing: border-box; }
+  .ks.fw  { width: 18px; height: 9px; background: rgba(34,197,94,0.24); border: 1px solid #22c55e; }
+  .ks.gn  { width: 12px; height: 12px; background: rgba(132,204,22,0.50); border: 1.5px solid #84cc16; border-radius: 50%; box-shadow: 0 0 4px #84cc16; }
+  .ks.tee { width: 14px; height: 7px; background: rgba(250,204,21,0.6); border: 1px solid #fef08a; box-shadow: 0 0 3px rgba(253,224,71,0.6); }
+  .ks.cl  { width: 18px; height: 0; border-top: 2px dashed #f1f5f9; }
+  .ks.sl  { width: 18px; height: 0; border-top: 2px dashed #fbbf24; box-shadow: 0 0 4px #fbbf24; }
+  .ks.way { width: 8px; height: 8px; background: #f59e0b; border: 1px solid #fff; border-radius: 50%; box-shadow: 0 0 3px #f59e0b; }
+  .ks.you { width: 12px; height: 12px; background: #3b82f6; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 5px #3b82f6; }
+  .ks.pin { width: 12px; height: 12px; background: #ef4444; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 5px #ef4444; }
+  .ks.lbl { display: inline-flex; width: 14px; height: 12px; background: rgba(132,204,22,0.18); border: 1px solid #a3e635; align-items: center; justify-content: center; font-size: 7px; font-weight: 700; color: #a3e635; box-shadow: 0 0 3px rgba(163,230,53,0.5); }
+  .ks.lbl.cur { background: rgba(251,191,36,0.25); border-color: #fbbf24; color: #fbbf24; box-shadow: 0 0 6px #fbbf24; }
+  .ks.lbl.p3  { border-color: #38bdf8; color: #38bdf8; box-shadow: 0 0 3px rgba(56,189,248,0.5); }
+  .ks.lbl.p5  { border-color: #f59e0b; color: #f59e0b; box-shadow: 0 0 3px rgba(245,158,11,0.5); }
+  .map-toggle {
+    display: flex; gap: 1px;
+    padding: 6px 12px 8px;
+    background: var(--bg-2);
+    border-bottom: 1px solid var(--bg-line);
+  }
+  .map-toggle button {
+    flex: 1; padding: 7px 4px;
+    background: var(--bg-3); border: 1px solid var(--bg-line); color: var(--dim);
+    font-size: 9px; letter-spacing: 2.5px; font-weight: 700;
+  }
+  .map-toggle button.active {
+    background: var(--green); color: var(--bg);
+    border-color: var(--green); box-shadow: 0 0 8px var(--green);
+  }
+  /* Hole popups */
+  .leaflet-popup-content-wrapper {
+    background: var(--bg-2); color: var(--text);
+    border: 1px solid var(--green); border-radius: 0;
+    box-shadow: 0 0 14px rgba(34,197,94,0.35);
+  }
+  .leaflet-popup-content { margin: 10px 12px; line-height: 1.4; }
+  .leaflet-popup-tip { background: var(--bg-2); border: 1px solid var(--green); }
+  .leaflet-popup-close-button { color: var(--dim) !important; font-size: 16px !important; padding: 4px 6px 0 0 !important; }
+  .hole-popup { font-family: 'IBM Plex Mono', 'SF Mono', Menlo, monospace; font-size: 10px; min-width: 220px; }
+  .hole-popup .hp-title {
+    font-size: 11px; letter-spacing: 2.5px; font-weight: 700;
+    color: var(--green); text-shadow: 0 0 6px var(--green);
+    border-bottom: 1px dashed var(--bg-line); padding-bottom: 4px; margin-bottom: 6px;
+  }
+  .hole-popup .hp-title.green-marker { color: var(--eagle); text-shadow: 0 0 6px var(--eagle); border-bottom-color: var(--eagle); }
+  .hole-popup .hp-grid {
+    display: grid; grid-template-columns: 78px 1fr;
+    gap: 2px 8px; font-size: 9px; margin-bottom: 6px;
+  }
+  .hole-popup .hp-grid span { color: var(--dim); letter-spacing: 1px; }
+  .hole-popup .hp-grid b { color: var(--text); font-weight: 700; letter-spacing: 0.5px; }
+  .hole-popup .hp-layout { font-size: 10px; line-height: 1.4; color: var(--text); margin: 6px 0 4px; }
+  .hole-popup .hp-haz { font-size: 9px; color: var(--warn); margin-bottom: 4px; line-height: 1.4; }
+  .hole-popup .hp-haz b { color: var(--warn); letter-spacing: 1px; margin-right: 4px; }
+  .hole-popup .hp-line {
+    font-size: 10px; color: var(--intel); text-shadow: 0 0 4px var(--intel);
+    margin: 4px 0 8px; font-weight: 700; line-height: 1.4;
+  }
+  .hole-popup .hp-btn {
+    width: 100%; padding: 8px; background: var(--bg-3);
+    border: 1px solid var(--green); color: var(--green);
+    font-family: inherit; font-size: 9px; letter-spacing: 2px; font-weight: 700;
+    cursor: pointer;
+  }
+  .hole-popup .hp-btn:active { background: var(--green); color: var(--bg); }
+  /* Legacy compact legend (kept as fallback class) */
+  .map-legend {
+    padding: 6px 12px;
+    display: flex; gap: 12px; flex-wrap: wrap;
+    font-size: 8px; letter-spacing: 1.5px; color: var(--dim);
+    border-top: 1px dashed var(--bg-line);
+    background: var(--bg-3);
+  }
+  .map-legend .lg { display: flex; align-items: center; gap: 5px; }
+  .map-legend .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: currentColor; box-shadow: 0 0 5px currentColor;
+  }
+  /* KAM Map Key + Live Status (replaces simple legend) */
+  .map-key {
+    background: var(--bg-3);
+    border-top: 1px solid var(--bg-line);
+    display: grid; grid-template-columns: 1.05fr 1fr;
+    gap: 1px;
+  }
+  @media (max-width: 420px) { .map-key { grid-template-columns: 1fr; } }
+  .mk-section {
+    background: var(--bg-2);
+    padding: 9px 11px 10px;
+  }
+  .mk-section.title { border-left: 3px solid var(--green); }
+  .mk-section.stat  { border-left: 3px solid var(--eagle); }
+  .mk-title {
+    font-size: 8px; letter-spacing: 3px;
+    color: var(--green); font-weight: 700;
+    margin-bottom: 7px;
+    text-shadow: 0 0 4px var(--green);
+  }
+  .mk-section.stat .mk-title { color: var(--eagle); text-shadow: 0 0 4px var(--eagle); }
+  .mk-grid { display: flex; flex-direction: column; gap: 5px; }
+  .mk-row {
+    display: flex; align-items: center; gap: 7px;
+    font-size: 9px; letter-spacing: 0.5px;
+    color: var(--text);
+  }
+  .mk-row .mk-name { color: var(--dim); }
+  .mk-swatch {
+    flex-shrink: 0;
+    width: 18px; height: 12px;
+    background: rgba(34,197,94,0.28); border: 1px solid #22c55e;
+  }
+  .mk-swatch.green   { background: rgba(132,204,22,0.45); border: 1px solid #84cc16; border-radius: 50%; height: 16px; width: 16px; box-shadow: 0 0 4px #84cc16; }
+  .mk-swatch.tee     { background: rgba(255,255,255,0.5); border: 1px solid #fff; height: 8px; }
+  .mk-swatch.line    { height: 0; background: transparent; border: none; border-top: 2px dashed #22c55e; box-shadow: 0 0 3px rgba(34,197,94,0.5); }
+  .mk-swatch.shot    { height: 0; background: transparent; border: none; border-top: 2px dashed #fbbf24; box-shadow: 0 0 4px rgba(251,191,36,0.7); }
+  .mk-swatch.way     { width: 10px; height: 10px; border-radius: 50%; background: #22c55e; border: 1px solid #fff; box-shadow: 0 0 4px #22c55e; }
+  .mk-swatch.you     { width: 14px; height: 14px; border-radius: 50%; background: #22c55e; border: 2px solid #fff; box-shadow: 0 0 6px #22c55e; }
+  .mk-swatch.pin     { width: 14px; height: 14px; border-radius: 50%; background: #dc2626; border: 2px solid #f59e0b; box-shadow: 0 0 6px #f59e0b; }
+  .mk-swatch.lbl     { width: 18px; height: 14px; background: rgba(132,204,22,0.18); border: 1px solid #a3e635; box-shadow: 0 0 4px rgba(163,230,53,0.45); display: flex; align-items: center; justify-content: center; font-size: 7px; color: #a3e635; font-weight: 700; }
+  .mk-swatch.lbl.par-3 { border-color: #38bdf8; color: #38bdf8; box-shadow: 0 0 4px rgba(56,189,248,0.5); }
+  .mk-swatch.lbl.par-5 { border-color: #f59e0b; color: #f59e0b; box-shadow: 0 0 4px rgba(245,158,11,0.5); }
+  .mk-swatch.lbl.cur   { background: rgba(251,191,36,0.25); border-color: #fbbf24; color: #fbbf24; box-shadow: 0 0 8px #fbbf24; }
+  .mk-stat { display: grid; grid-template-columns: 76px 1fr; gap: 4px 8px; font-size: 9px; letter-spacing: 0.5px; }
+  .mk-stat dt { color: var(--dim); letter-spacing: 1.5px; font-size: 8px; padding-top: 1px; }
+  .mk-stat dd { color: var(--text); font-weight: 700; }
+  .mk-stat dd.eagle { color: var(--eagle); text-shadow: 0 0 4px var(--eagle); }
+  .mk-stat dd.green { color: var(--green); text-shadow: 0 0 4px var(--green); }
+  .mk-stat dd.warn  { color: var(--amber); }
+  .mk-foot {
+    grid-column: 1 / -1;
+    padding: 6px 12px 8px;
+    font-size: 7px; letter-spacing: 1px;
+    color: var(--dim);
+    background: var(--bg-3);
+    border-top: 1px dashed var(--bg-line);
+  }
+
+  .hole-nav {
+    display: flex; gap: 6px; align-items: center;
+    padding: 8px 12px;
+    background: var(--bg-2); border-top: 1px solid var(--bg-line);
+  }
+  .hole-nav button {
+    padding: 7px 10px; background: var(--bg-3);
+    border: 1px solid var(--green); color: var(--green);
+    font-size: 10px; letter-spacing: 2px; font-weight: 700;
+  }
+  .hole-nav-info { flex: 1; text-align: center; font-size: 10px; color: var(--dim); letter-spacing: 1.5px; }
+
+  .club-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 10px 12px; }
+  .club-btn {
+    padding: 11px 4px; background: var(--bg-3);
+    border: 1px solid #475569; color: var(--text);
+    font-size: 10px; font-weight: 700; position: relative;
+  }
+  .club-btn.active {
+    background: var(--green); border-color: var(--green); color: #fff;
+    box-shadow: 0 0 12px var(--green);
+  }
+  .club-btn.recommended::after {
+    content: '◇'; position: absolute; top: 2px; right: 4px;
+    color: var(--intel); text-shadow: 0 0 4px var(--intel); font-size: 10px;
+  }
+  .club-name { display: block; font-size: 12px; margin-bottom: 1px; }
+  .club-dist { font-size: 9px; color: var(--dim); letter-spacing: 1px; }
+  .club-btn.active .club-dist { color: rgba(255,255,255,0.85); }
+  .club-recommend {
+    margin: 0 12px 10px; padding: 7px 10px;
+    background: rgba(34,197,94,0.08);
+    border: 1px dashed var(--green);
+    font-size: 10px; letter-spacing: 1.5px;
+    color: var(--green); text-align: center;
+  }
+
+  .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 12px 10px; }
+  .controls.full { grid-template-columns: 1fr; }
+  .ctl {
+    padding: 13px 8px; background: var(--bg-3);
+    border: 2px solid var(--green); color: var(--green);
+    font-size: 11px; letter-spacing: 2.5px; font-weight: 700;
+  }
+  .ctl:active { background: var(--green); color: #fff; }
+  .ctl.warn  { border-color: var(--warn);  color: var(--warn); }
+  .ctl.warn:active  { background: var(--warn);  color: #fff; }
+  .ctl.amber { border-color: var(--amber); color: var(--amber); }
+  .ctl.amber:active { background: var(--amber); color: #000; }
+  .ctl.ask   { border-color: var(--ask);   color: var(--ask); }
+  .ctl.ask:active   { background: var(--ask);   color: var(--bg); }
+  .ctl.full { grid-column: 1 / -1; }
+
+  .start-btn {
+    display: block; width: calc(100% - 24px); margin: 12px;
+    padding: 16px;
+    background: linear-gradient(180deg, var(--green), var(--green-d));
+    color: var(--bg);
+    font-size: 13px; letter-spacing: 5px; font-weight: 700;
+    text-shadow: 0 0 6px rgba(255,255,255,0.4);
+    box-shadow: 0 0 22px rgba(34,197,94,0.5);
+  }
+  .start-btn:disabled { opacity: 0.7; }
+
+  .feed-list { max-height: 230px; overflow-y: auto; font-size: 11px; }
+  .feed-row {
+    display: grid; grid-template-columns: 50px 60px 1fr;
+    gap: 8px; padding: 5px 12px;
+    border-bottom: 1px dashed var(--bg-line); line-height: 1.4;
+  }
+  .feed-row:last-child { border-bottom: none; }
+  .feed-time { color: var(--dim); font-size: 9px; padding-top: 1px; }
+  .feed-tag  { font-size: 9px; letter-spacing: 1.5px; font-weight: 700; padding-top: 1px; }
+  .feed-tag.eagle  { color: var(--eagle); }
+  .feed-tag.birdie { color: var(--birdie); }
+  .feed-tag.gps    { color: var(--green); }
+  .feed-tag.shot   { color: var(--intel); }
+  .feed-tag.wx     { color: var(--amber); }
+  .feed-tag.you    { color: var(--ask); }
+  .feed-tag.hole   { color: var(--green); }
+  .feed-tag.armed  { color: var(--course); }
+  .feed-text { color: var(--text); }
+  .feed-empty { padding: 16px; text-align: center; color: var(--dim); font-style: italic; font-size: 11px; }
+
+  .analysis-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--bg-line); }
+  .ana-cell { background: var(--bg-3); padding: 9px 10px; }
+  .ana-label { font-size: 8px; letter-spacing: 1.5px; color: var(--dim); }
+  .ana-value { font-size: 16px; font-weight: 700; color: var(--eagle); text-shadow: 0 0 5px var(--eagle); margin-top: 2px; }
+  .ana-sub   { font-size: 9px; color: var(--dim); margin-top: 1px; }
+
+  .theory-card {
+    padding: 12px; font-size: 12px; line-height: 1.55;
+    color: var(--theory); text-shadow: 0 0 5px rgba(249,115,22,0.4);
+    background: rgba(249,115,22,0.05);
+    min-height: 60px;
+    display: flex; align-items: center; justify-content: center; text-align: center;
+    transition: opacity .25s;
+  }
+  .theory-row { display: flex; gap: 6px; padding: 6px 12px 10px; align-items: center; }
+  .theory-row .ctl { padding: 9px 6px; font-size: 9px; letter-spacing: 2px; }
+  .theory-dots { flex: 1; display: flex; gap: 4px; justify-content: center; }
+  .theory-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--bg-line); }
+  .theory-dot.active { background: var(--theory); box-shadow: 0 0 5px var(--theory); }
+
+  .scorecard { padding: 8px 12px; font-size: 11px; }
+  .score-row {
+    display: grid; grid-template-columns: 40px 40px 50px 1fr 50px;
+    gap: 6px; padding: 4px 0;
+    border-bottom: 1px dashed var(--bg-line);
+  }
+  .score-row.head  { color: var(--dim); font-size: 8px; letter-spacing: 2px; border-bottom: 1px solid var(--dim); }
+  .score-row.total { border-top: 1px solid var(--green); border-bottom: none; margin-top: 4px; padding-top: 6px; font-weight: 700; color: var(--green); }
+  .score-empty { padding: 12px; color: var(--dim); font-style: italic; text-align: center; font-size: 11px; }
+  .score-clubs { font-size: 9px; color: var(--dim); }
+  .score-diff.under { color: var(--green); }
+  .score-diff.over  { color: var(--warn); }
+
+  .export-row { padding: 10px 12px; }
+  .export-row .ctl { width: 100%; }
+
+  .glasses-note { font-size: 10px; color: #aacce0; line-height: 1.55; padding: 8px 12px 10px; }
+  .glasses-note b { color: var(--glasses); }
+
+  /* Garden vision viewport */
+  .garden-viewport {
+    position: relative;
+    width: calc(100% - 24px); height: 280px;
+    margin: 10px 12px;
+    background: #000;
+    border: 1px solid var(--green);
+    overflow: hidden;
+  }
+  .garden-viewport video {
+    width: 100%; height: 100%; object-fit: cover;
+    display: none;
+    transform: scaleX(1);
+  }
+  .garden-viewport.live video { display: block; }
+  .garden-cta {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 8px;
+    color: var(--dim); font-size: 10px; letter-spacing: 2px;
+  }
+  .garden-viewport.live .garden-cta { display: none; }
+  .garden-cam-toggle {
+    position: absolute; top: 10px; right: 10px; z-index: 6;
+    padding: 6px 10px; font-size: 9px; letter-spacing: 2px; font-weight: 700;
+    background: rgba(4,8,15,0.85); border: 1px solid var(--warn); color: var(--warn);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    display: none;
+  }
+  .garden-viewport.live .garden-cam-toggle { display: block; }
+  .garden-scan-overlay {
+    position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(180deg, rgba(45,212,191,0) 0%, rgba(45,212,191,0.15) 50%, rgba(45,212,191,0) 100%);
+    background-size: 100% 50px;
+    animation: scanSweep 1.6s linear infinite;
+    display: none;
+    z-index: 5;
+  }
+  .garden-viewport.scanning .garden-scan-overlay { display: block; }
+  @keyframes scanSweep {
+    0%   { background-position: 0 -100%; }
+    100% { background-position: 0  200%; }
+  }
+  .garden-targets {
+    margin: 0 12px 10px;
+    padding: 10px 12px;
+    background: var(--bg-3);
+    border: 1px solid var(--bg-line);
+    border-left: 3px solid var(--ask);
+    font-size: 11px; line-height: 1.55;
+    color: var(--text);
+    white-space: pre-wrap;
+    max-height: 200px; overflow-y: auto;
+  }
+  .garden-targets.empty { color: var(--dim); font-style: italic; font-size: 10px; }
+  .garden-meta {
+    padding: 6px 12px 0;
+    font-size: 9px; letter-spacing: 1.5px; color: var(--dim);
+    display: flex; justify-content: space-between;
+  }
+  .garden-meta b { color: var(--ask); letter-spacing: 2px; }
+
+  /* Mic test level meter — confirms glasses mic is active */
+  .mic-meter {
+    position: relative;
+    width: 100%; height: 14px;
+    background: var(--bg-3);
+    border: 1px solid var(--bg-line);
+    margin: 6px 0 4px;
+    overflow: hidden;
+  }
+  .mic-meter-fill {
+    position: absolute; left: 0; top: 0; bottom: 0;
+    width: 0%;
+    background: linear-gradient(90deg, var(--green) 0%, var(--green) 55%, var(--amber) 78%, var(--warn) 100%);
+    transition: width .08s linear;
+    box-shadow: 0 0 5px currentColor;
+  }
+  .mic-meter-grid {
+    position: absolute; inset: 0;
+    background-image: repeating-linear-gradient(90deg, transparent 0, transparent calc(10% - 1px), rgba(255,255,255,0.16) calc(10% - 1px), rgba(255,255,255,0.16) 10%);
+    pointer-events: none;
+  }
+  .mic-meter-peak {
+    position: absolute; top: -1px; bottom: -1px;
+    width: 2px; background: var(--eagle);
+    box-shadow: 0 0 5px var(--eagle);
+    transition: left .25s ease-out;
+    left: 0;
+  }
+
+  /* Generic armed state for ctl buttons */
+  .ctl.armed {
+    background: var(--green); color: #fff;
+    border-color: var(--green);
+    text-shadow: 0 0 4px #fff;
+    animation: ctlPulse 0.9s ease-in-out infinite;
+  }
+  @keyframes ctlPulse {
+    0%, 100% { box-shadow: 0 0 18px var(--green), inset 0 0 0 1px var(--green); }
+    50%      { box-shadow: 0 0 32px var(--green), inset 0 0 0 1px #fff; }
+  }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+    padding: 10px 16px;
+    background: var(--bg-3); border: 2px solid var(--green); color: var(--green);
+    font-size: 10px; letter-spacing: 2px;
+    box-shadow: 0 0 18px var(--green); text-shadow: 0 0 4px var(--green);
+    z-index: 9999; transition: opacity .3s;
+    max-width: calc(100vw - 32px); text-align: center;
+  }
+
+  .modal-bg {
+    position: fixed; inset: 0;
+    background: rgba(4,8,15,0.92);
+    z-index: 999;
+    display: none; align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .modal-bg.open { display: flex; }
+  .modal {
+    width: 100%; max-width: 380px;
+    background: var(--bg-2); border: 1px solid var(--green);
+    padding: 16px; max-height: 88vh; overflow-y: auto;
+  }
+  .modal h2 { font-size: 11px; letter-spacing: 4px; color: var(--green); margin-bottom: 12px; text-shadow: 0 0 6px var(--green); }
+  .modal label { display: block; font-size: 9px; color: var(--dim); letter-spacing: 2px; margin: 10px 0 4px; }
+  .modal label .hint { font-weight: 400; color: var(--dim); margin-left: 6px; letter-spacing: 0.5px; }
+  .modal input {
+    width: 100%; padding: 10px;
+    background: var(--bg-3); border: 1px solid var(--bg-line); color: var(--text);
+    font-family: inherit; font-size: 12px;
+  }
+  .modal input:focus { outline: none; border-color: var(--green); }
+  .modal .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+  .modal .key-status { margin-top: 10px; font-size: 9px; letter-spacing: 1px; color: var(--dim); line-height: 1.6; }
+  .modal .key-status .ok { color: var(--green); }
+  .modal .key-status .miss { color: var(--warn); }
+
+  /* ElevenLabs diagnostic results */
+  .diag-result {
+    margin-top: 10px;
+    padding: 8px 10px;
+    background: var(--bg-3);
+    border: 1px solid var(--bg-line);
+    font-size: 10px; line-height: 1.55;
+    max-height: 280px; overflow-y: auto;
+  }
+  .diag-result .diag-row {
+    display: flex; gap: 6px; align-items: center;
+    padding: 4px 0;
+    border-bottom: 1px dashed var(--bg-line);
+  }
+  .diag-result .diag-row:last-child { border-bottom: none; }
+  .diag-result .diag-pick-eagle, .diag-result .diag-pick-birdie {
+    background: transparent;
+    padding: 3px 6px; font-size: 8px; letter-spacing: 1px; font-weight: 700;
+    cursor: pointer; flex-shrink: 0;
+  }
+  .diag-result .diag-pick-eagle  { border: 1px solid var(--eagle);  color: var(--eagle); }
+  .diag-result .diag-pick-eagle:active  { background: var(--eagle);  color: var(--bg); }
+  .diag-result .diag-pick-birdie { border: 1px solid var(--birdie); color: var(--birdie); }
+  .diag-result .diag-pick-birdie:active { background: var(--birdie); color: var(--bg); }
+  .diag-result .diag-name { color: var(--text); font-weight: 700; flex: 1; }
+  .diag-result .diag-id { color: var(--dim); font-size: 9px; flex-shrink: 0; }
+  .diag-result .diag-tag { color: var(--eagle); font-weight: 700; font-size: 8px; letter-spacing: 1.5px; }
+  .diag-result .diag-head { font-size: 9px; letter-spacing: 1.5px; color: var(--green); margin: 4px 0 6px; padding-bottom: 4px; border-bottom: 1px solid var(--bg-line); }
+  .diag-result .ok   { color: var(--green); }
+  .diag-result .miss { color: var(--warn);  }
+
+  /* BAG modal */
+  .bag-modal { border-color: var(--bag); }
+  .bag-modal h2 { color: var(--bag); text-shadow: 0 0 6px var(--bag); }
+  .bag-list { display: flex; flex-direction: column; gap: 4px; max-height: 60vh; overflow-y: auto; padding-right: 2px; margin-top: 4px; }
+  .bag-row {
+    display: grid; grid-template-columns: 80px 60px 30px 28px;
+    gap: 6px; align-items: center;
+    padding: 4px 0;
+    border-bottom: 1px dashed var(--bg-line);
+  }
+  .bag-row .bag-name-input { background: var(--bg-3); border: 1px solid var(--bg-line); color: var(--text); padding: 6px 8px; font-size: 12px; font-weight: 700; text-align: center; }
+  .bag-row .bag-name-input:focus { outline: none; border-color: var(--bag); }
+  .bag-row .bag-avg-input { background: var(--bg-3); border: 1px solid var(--bg-line); color: var(--bag); padding: 6px 8px; font-size: 12px; font-weight: 700; text-align: center; }
+  .bag-row .bag-avg-input:focus { outline: none; border-color: var(--bag); }
+  .bag-row .bag-suffix { font-size: 9px; color: var(--dim); letter-spacing: 1px; }
+  .bag-row .bag-del {
+    background: transparent; border: 1px solid var(--warn); color: var(--warn);
+    font-size: 11px; padding: 4px 0; font-weight: 700;
+  }
+  .bag-add {
+    margin-top: 8px; padding: 10px; width: 100%;
+    background: var(--bg-3); border: 1px dashed var(--bag); color: var(--bag);
+    font-size: 10px; letter-spacing: 2px; font-weight: 700;
+  }
+
+  /* COURSE PIN modal — full-screen sat map */
+  .pin-modal-bg {
+    position: fixed; inset: 0; background: var(--bg);
+    z-index: 1000; display: none; flex-direction: column;
+  }
+  .pin-modal-bg.open { display: flex; }
+  .pin-hdr {
+    flex-shrink: 0;
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 12px;
+    background: var(--bg-2);
+    border-bottom: 2px solid var(--course);
+  }
+  .pin-hdr .title {
+    flex: 1; font-size: 11px; letter-spacing: 3px;
+    color: var(--course); font-weight: 700;
+    text-shadow: 0 0 6px var(--course);
+  }
+  .pin-hdr .close {
+    padding: 6px 10px; background: transparent;
+    border: 1px solid var(--warn); color: var(--warn);
+    font-size: 9px; letter-spacing: 2px; font-weight: 700;
+  }
+  .pin-info {
+    padding: 8px 12px;
+    background: var(--bg-3); border-bottom: 1px solid var(--bg-line);
+    font-size: 10px; letter-spacing: 1.5px;
+    color: var(--text); line-height: 1.6;
+  }
+  .pin-info .pi-row { display: flex; align-items: baseline; gap: 8px; }
+  .pin-info .pi-tag { color: var(--course); font-weight: 700; min-width: 56px; }
+  .pin-info .pi-status { color: var(--dim); font-size: 9px; }
+  .pin-info .pi-status.ok { color: var(--green); }
+  .pin-info .pi-status.miss { color: var(--warn); }
+  .pin-mode {
+    display: flex; gap: 6px; padding: 8px 12px;
+    background: var(--bg-3); border-bottom: 1px solid var(--bg-line);
+  }
+  .pin-mode button {
+    flex: 1; padding: 10px;
+    background: var(--bg-3); border: 1px solid var(--bg-line); color: var(--dim);
+    font-size: 10px; letter-spacing: 2px; font-weight: 700;
+  }
+  .pin-mode button.active {
+    background: var(--course); color: var(--bg);
+    border-color: var(--course); box-shadow: 0 0 10px var(--course);
+  }
+  .pin-map { flex: 1; min-height: 0; background: var(--bg-3); }
+  .pin-foot {
+    flex-shrink: 0;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
+    padding: 10px 12px;
+    background: var(--bg-2); border-top: 1px solid var(--bg-line);
+  }
+  .pin-foot button {
+    padding: 12px 4px; background: var(--bg-3); border: 1px solid var(--green); color: var(--green);
+    font-size: 10px; letter-spacing: 2px; font-weight: 700;
+  }
+  .pin-foot button.amber { border-color: var(--amber); color: var(--amber); }
+</style>
+</head>
+<body>
+
+<header class="hdr">
+  <div class="hdr-title">⛳ KAM CADDY</div>
+  <button id="hdr-keys" class="hdr-btn warn">⚙ KEYS</button>
+  <button id="hdr-bag"  class="hdr-btn bag">⛳ BAG</button>
+  <button id="hdr-rec"  class="hdr-btn">⦿ REC</button>
+  <button id="hdr-live" class="hdr-btn">⛳ ROUND</button>
+</header>
+
+<nav class="mode-bar" id="mode-bar">
+  <button class="mode-btn active" data-mode="course"><span class="glyph">⛳</span>COURSE</button>
+  <button class="mode-btn"        data-mode="garden"><span class="glyph">🏡</span>GARDEN</button>
+  <button class="mode-btn"        data-mode="range"><span class="glyph">🏌️</span>RANGE</button>
+  <button class="mode-btn"        data-mode="green"><span class="glyph">🎯</span>PUTTING</button>
+</nav>
+
+<section class="stage" id="stage">
+  <div class="stage-bg"></div>
+  <div id="stage-map" class="stage-map"></div>
+  <div class="stage-grid"></div>
+  <div class="stage-vignette"></div>
+  <div class="stage-watermark">⛳ KAM CADDY</div>
+  <div class="rec-dot"></div>
+  <div class="achievement-flash" id="achievement-flash"></div>
+
+  <div class="chips">
+    <div class="chip">
+      <span class="chip-label">HOLE</span>
+      <span class="chip-value" id="chip-hole">—</span>
+      <span class="chip-sub"   id="chip-hole-sub">no course</span>
+    </div>
+    <div class="chip">
+      <span class="chip-label">DIST PIN</span>
+      <span class="chip-value" id="chip-dist">—</span>
+      <span class="chip-sub"   id="chip-dist-sub">m / yds</span>
+    </div>
+    <div class="chip">
+      <span class="chip-label">WIND</span>
+      <span class="chip-value" id="chip-wind">—</span>
+      <span class="chip-sub"   id="chip-wind-sub">awaiting OWM</span>
+    </div>
+  </div>
+
+  <div class="cad-av cad-av-eagle" id="av-eagle">
+    <div class="cad-av-stripe"></div>
+    <div class="cad-av-body">
+      <div class="cad-av-row">
+        <div class="cad-av-code">EGL</div>
+        <div class="cad-av-meta">
+          <div class="cad-av-name">EAGLE</div>
+          <div class="cad-av-state" id="av-eagle-state">STRATEGIC · IDLE</div>
+        </div>
+      </div>
+      <div class="cad-av-bars"><span></span><span></span><span></span><span></span></div>
+    </div>
+  </div>
+
+  <div class="cad-av cad-av-birdie" id="av-birdie">
+    <div class="cad-av-stripe"></div>
+    <div class="cad-av-body">
+      <div class="cad-av-row">
+        <div class="cad-av-code">BRD</div>
+        <div class="cad-av-meta">
+          <div class="cad-av-name">BIRDIE</div>
+          <div class="cad-av-state" id="av-birdie-state">EXECUTION · IDLE</div>
+        </div>
+      </div>
+      <div class="cad-av-bars"><span></span><span></span><span></span><span></span></div>
+    </div>
+  </div>
+
+  <div class="caption empty" id="caption">live stage · awaiting first read</div>
+
+  <div class="stage-actions">
+    <button id="btn-talk" class="stage-talk">◉ ASK</button>
+    <button id="btn-arm"  class="stage-arm">▸ I'M GONNA SHOOT</button>
+  </div>
+</section>
+
+<main class="scroll">
+
+  <div class="mode" id="mode-course">
+
+    <button id="btn-start" class="start-btn">▸ START ROUND</button>
+
+    <section class="panel panel-course">
+      <div class="panel-head">
+        <span class="ph-glyph">⌖</span>
+        <span class="ph-title">COURSE</span>
+        <span class="ph-sub" id="course-pinned-sub">choose · then pin holes</span>
+      </div>
+      <div class="course-row">
+        <select id="course-select" class="course-select"></select>
+        <button id="btn-course-new" class="course-new">+ NEW</button>
+      </div>
+      <div class="course-meta-row">
+        <span class="pinned" id="course-pinned">0/18 pinned</span>
+        <span class="stat" id="course-meta">par — · — yds</span>
+      </div>
+      <button id="btn-course-pin" class="course-pin-btn">◉ PIN HOLES (TEE + GREEN)</button>
+    </section>
+
+    <section class="panel panel-ask">
+      <div class="panel-head">
+        <span class="ph-glyph">◑</span>
+        <span class="ph-title">ASK CADDY</span>
+        <span class="ph-sub">Eagle or Birdie answers · live context</span>
+      </div>
+      <div class="ask-row">
+        <input id="ask-input" type="text" placeholder="ask anything · what club · how do i play this hole">
+        <button class="ask-send" id="ask-send">SEND</button>
+      </div>
+      <div class="ask-quick" id="ask-quick">
+        <button data-q="What club should I hit and where should I aim?">CLUB + LINE</button>
+        <button data-q="What's the smart miss on this hole?">SMART MISS</button>
+        <button data-q="Talk me through this approach shot.">APPROACH</button>
+        <button data-q="How do I stop spraying it right today?">FIX SLICE</button>
+        <button data-q="Read me the wind for this shot.">WIND READ</button>
+      </div>
+    </section>
+
+    <section class="panel panel-intel">
+      <div class="panel-head">
+        <span class="ph-glyph">◇</span>
+        <span class="ph-title">HOLE INTEL</span>
+        <span class="ph-sub" id="intel-hole-sub">awaiting hole detect</span>
+      </div>
+      <div class="panel-body">
+        <dl class="intel-grid">
+          <dt>HOLE</dt>     <dd id="intel-hole">—</dd>
+          <dt>PAR · YDS</dt><dd id="intel-par">—</dd>
+          <dt>STR. INDEX</dt><dd id="intel-si">—</dd>
+          <dt>LAYOUT</dt>   <dd id="intel-layout">pick a course and pin tee + green positions to populate</dd>
+          <dt>HAZARDS</dt>  <dd id="intel-hazards">—</dd>
+          <dt>LINE</dt>     <dd class="intel-line" id="intel-line">—</dd>
+          <dt>CLUB CALL</dt><dd id="intel-club">—</dd>
+        </dl>
+      </div>
+      <div class="hole-nav">
+        <button id="hole-prev">◂ PREV</button>
+        <div class="hole-nav-info" id="hole-nav-info">tap to preview holes</div>
+        <button id="hole-next">NEXT ▸</button>
+      </div>
+    </section>
+
+    <section class="panel panel-map">
+      <div class="panel-head">
+        <span class="ph-glyph">◉</span>
+        <span class="ph-title">KAM MAP</span>
+        <span class="ph-sub">tap any tee or green for hole detail</span>
+      </div>
+      <div class="map-toggle">
+        <button id="map-mode-sat" class="active">◉ SAT · GOOGLE EARTH</button>
+        <button id="map-mode-kam">◇ KAM · TACTICAL</button>
+      </div>
+      <div id="map" class="mode-sat"></div>
+    </section>
+
+    <section class="panel panel-weather">
+      <div class="panel-head">
+        <span class="ph-glyph">◴</span>
+        <span class="ph-title">WEATHER · OWM</span>
+        <span class="ph-sub" id="wx-sub">no fix</span>
+      </div>
+      <div class="wx-grid">
+        <div class="wx-cell"><div class="wx-label">WIND</div><div class="wx-value" id="wx-wind">—</div><div class="wx-sub" id="wx-wind-sub">mph · dir</div></div>
+        <div class="wx-cell"><div class="wx-label">GUST</div><div class="wx-value" id="wx-gust">—</div><div class="wx-sub">mph</div></div>
+        <div class="wx-cell"><div class="wx-label">TEMP</div><div class="wx-value" id="wx-temp">—</div><div class="wx-sub" id="wx-feels">feels —</div></div>
+        <div class="wx-cell"><div class="wx-label">HUMIDITY</div><div class="wx-value" id="wx-hum">—</div><div class="wx-sub">%</div></div>
+        <div class="wx-cell"><div class="wx-label">PRESSURE</div><div class="wx-value" id="wx-pres">—</div><div class="wx-sub">hPa</div></div>
+        <div class="wx-cell"><div class="wx-label">CLOUDS</div><div class="wx-value" id="wx-cloud">—</div><div class="wx-sub" id="wx-cond">—</div></div>
+      </div>
+      <div class="wx-call" id="wx-call">tap ⚙ KEYS · paste OWM key for live conditions</div>
+    </section>
+
+    <section class="panel panel-clubs">
+      <div class="panel-head">
+        <span class="ph-glyph">⛳</span>
+        <span class="ph-title">CLUB SELECT</span>
+        <span class="ph-sub">tap → Birdie cue</span>
+      </div>
+      <div class="club-recommend" id="club-rec">recommended club appears once GPS locks the hole</div>
+      <div class="club-grid" id="course-clubs"></div>
+      <div class="controls">
+        <button class="ctl" id="btn-shot">▸ SHOT PLAYED</button>
+        <button class="ctl warn" id="btn-end-hole">⛳ END HOLE</button>
+      </div>
+    </section>
+
+    <section class="panel panel-feed">
+      <div class="panel-head">
+        <span class="ph-glyph">▸</span>
+        <span class="ph-title">LIVE FEED</span>
+        <span class="ph-sub">events · timestamped</span>
+      </div>
+      <div class="feed-list" id="feed-list">
+        <div class="feed-empty">no events yet · tap ▸ START ROUND</div>
+      </div>
+    </section>
+
+    <section class="panel panel-analysis">
+      <div class="panel-head">
+        <span class="ph-glyph">◐</span>
+        <span class="ph-title">ROUND ANALYSIS</span>
+        <span class="ph-sub">live · updates per shot</span>
+      </div>
+      <div class="analysis-grid">
+        <div class="ana-cell"><div class="ana-label">SHOTS</div><div class="ana-value" id="ana-shots">0</div><div class="ana-sub" id="ana-vs-par">vs par —</div></div>
+        <div class="ana-cell"><div class="ana-label">HOLES DONE</div><div class="ana-value" id="ana-done">0</div><div class="ana-sub" id="ana-pace">pace —</div></div>
+        <div class="ana-cell"><div class="ana-label">LAST HOLE</div><div class="ana-value" id="ana-last">—</div><div class="ana-sub" id="ana-last-sub">—</div></div>
+        <div class="ana-cell"><div class="ana-label">TREND L3</div><div class="ana-value" id="ana-trend">—</div><div class="ana-sub" id="ana-trend-sub">last three holes</div></div>
+      </div>
+    </section>
+
+    <section class="panel panel-theory">
+      <div class="panel-head">
+        <span class="ph-glyph">✦</span>
+        <span class="ph-title">COURSE THEORY</span>
+        <span class="ph-sub">tap to cycle</span>
+      </div>
+      <div class="theory-card" id="theory-card">—</div>
+      <div class="theory-row">
+        <button class="ctl amber" id="theory-prev">◂ PREV</button>
+        <div class="theory-dots" id="theory-dots"></div>
+        <button class="ctl amber" id="theory-next">NEXT ▸</button>
+      </div>
+    </section>
+
+    <section class="panel panel-score">
+      <div class="panel-head">
+        <span class="ph-glyph">▤</span>
+        <span class="ph-title">SCORECARD</span>
+        <span class="ph-sub" id="score-sub">no holes ended</span>
+      </div>
+      <div class="scorecard" id="scorecard">
+        <div class="score-row head"><span>HOLE</span><span>PAR</span><span>SHOTS</span><span>CLUBS</span><span>+/-</span></div>
+        <div id="score-rows"><div class="score-empty">no holes ended yet</div></div>
+      </div>
+    </section>
+
+    <section class="panel panel-export">
+      <div class="panel-head">
+        <span class="ph-glyph">▾</span>
+        <span class="ph-title">EXPORT ROUND</span>
+        <span class="ph-sub">markdown · clipboard + download</span>
+      </div>
+      <div class="export-row">
+        <button class="ctl" id="btn-export">▾ COPY + DOWNLOAD ROUND.md</button>
+      </div>
+      <div class="export-row" style="padding-top:0;">
+        <button class="ctl warn" id="btn-reset">↺ RESET ROUND</button>
+      </div>
+    </section>
+
+    <section class="panel panel-glasses">
+      <div class="panel-head">
+        <span class="ph-glyph">🕶</span>
+        <span class="ph-title">META GLASSES</span>
+        <span class="ph-sub" id="glasses-status">○ NOT PAIRED</span>
+      </div>
+      <div class="glasses-note">
+        <b>Audio out · works today:</b> pair Ray-Bans via iOS Bluetooth → Eagle, Birdie + browser TTS auto-route to the glasses speakers. Spotify ducks while voices play.<br>
+        <b>Mic in · works today:</b> when paired, the glasses mic is iOS's active input. Tap ◉ ASK on the live stage and speak — Web Speech transcribes via the glasses mic, response voiced back through the glasses.<br>
+        <b>POV camera · next pass:</b> live POV streaming needs the Meta Device Access SDK / VisionClaw fork. Until then the stage uses the satellite map. Garden + Putting modes use the <i>phone</i> back-camera for chip + green vision (higher framerate than the SDK gives anyway).<br>
+        <b>Native record:</b> the glasses' own side-button records clips into Meta View regardless. Use it any time for social.
+      </div>
+      <div style="padding: 4px 12px 0;">
+        <div style="font-size:9px; letter-spacing:2px; color:var(--dim); margin-top:4px;">AUDIO OUT</div>
+      </div>
+      <div class="controls">
+        <button class="ctl" id="btn-test-audio" style="font-size:9px;">🔊 TEST AUDIO ROUTING</button>
+        <button class="ctl amber" id="btn-bt-help" style="font-size:9px;">⚙ BT PAIRING HELP</button>
+      </div>
+      <div style="padding: 0 12px 10px;">
+        <div style="font-size:9px; letter-spacing:2px; color:var(--dim); margin-top:6px;">AUDIO IN · GLASSES MIC LEVEL</div>
+        <div class="mic-meter">
+          <div class="mic-meter-fill" id="mic-meter-fill"></div>
+          <div class="mic-meter-peak" id="mic-meter-peak"></div>
+          <div class="mic-meter-grid"></div>
+        </div>
+        <button class="ctl" id="btn-mic-test" style="width:100%; font-size:9px;">🎤 START MIC TEST</button>
+        <div style="font-size:9px; color:var(--dim); margin-top:5px; line-height:1.55;">Pair the glasses, tap START, then speak. Bar jumps = the glasses mic is the active input. If silent or quiet → iOS is still using the phone mic; toggle BT off/on to force re-route.</div>
+      </div>
+    </section>
+  </div>
+
+  <div class="mode hidden" id="mode-garden">
+    <section class="panel panel-clubs">
+      <div class="panel-head">
+        <span class="ph-glyph">🏡</span>
+        <span class="ph-title">GARDEN · CHIP PRACTICE</span>
+        <span class="ph-sub" id="garden-status">camera off · tap CONNECT</span>
+      </div>
+      <div class="garden-viewport" id="garden-viewport">
+        <video id="garden-video" autoplay playsinline muted></video>
+        <div class="garden-scan-overlay"></div>
+        <button class="garden-cam-toggle" id="btn-garden-stop">✕ STOP CAM</button>
+        <div class="garden-cta">
+          <div>📷 LIVE VISION</div>
+          <button class="ctl" id="btn-garden-cam" style="font-size:10px; padding:10px 16px;">▸ CONNECT CAMERA</button>
+        </div>
+      </div>
+      <div class="garden-meta">
+        <span>frames sent to <b>CLAUDE VISION</b></span>
+        <span>voice via <b>GLASSES</b></span>
+      </div>
+      <div class="wx-grid">
+        <div class="wx-cell"><div class="wx-label">CHIPS</div><div class="wx-value" id="g-chips" style="color:var(--green); text-shadow:0 0 5px var(--green);">0</div></div>
+        <div class="wx-cell"><div class="wx-label">MAKES</div><div class="wx-value" id="g-makes" style="color:var(--green); text-shadow:0 0 5px var(--green);">0</div></div>
+        <div class="wx-cell"><div class="wx-label">MAKE %</div><div class="wx-value" id="g-pct" style="color:var(--green); text-shadow:0 0 5px var(--green);">—</div></div>
+      </div>
+      <div class="controls full" style="margin-top:10px;">
+        <button class="ctl ask" id="btn-garden-scan">◇ SCAN GARDEN · IDENTIFY TARGETS</button>
+      </div>
+      <div class="garden-targets empty" id="garden-targets">scan garden to identify chip targets · Eagle reads the layout aloud through your glasses</div>
+      <div class="controls full">
+        <button class="ctl" id="btn-garden-chip">▸ CHIP TAKEN · AUTO-SCORE (10s)</button>
+      </div>
+      <div class="controls">
+        <button class="ctl" id="btn-chip-make">✓ MAKE · manual</button>
+        <button class="ctl warn" id="btn-chip-miss">✗ MISS · manual</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="mode hidden" id="mode-range">
+    <section class="panel panel-clubs">
+      <div class="panel-head">
+        <span class="ph-glyph">🏌️</span>
+        <span class="ph-title">RANGE · CALIBRATION</span>
+        <span class="ph-sub">tap club · log carry · refines MY BAG</span>
+      </div>
+      <div class="wx-grid">
+        <div class="wx-cell"><div class="wx-label">CLUB</div><div class="wx-value" id="r-club" style="color:var(--green); text-shadow:0 0 5px var(--green);">—</div></div>
+        <div class="wx-cell"><div class="wx-label">LAST</div><div class="wx-value" id="r-last" style="color:var(--green); text-shadow:0 0 5px var(--green);">—</div><div class="wx-sub">m</div></div>
+        <div class="wx-cell"><div class="wx-label">AVG</div><div class="wx-value" id="r-avg" style="color:var(--green); text-shadow:0 0 5px var(--green);">—</div><div class="wx-sub">m</div></div>
+      </div>
+      <div class="club-grid" id="range-clubs"></div>
+      <div class="controls">
+        <button class="ctl" id="btn-range-log">▸ LOG SHOT</button>
+        <button class="ctl warn" id="btn-range-end">▣ END SESSION</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="mode hidden" id="mode-green">
+    <section class="panel panel-clubs">
+      <div class="panel-head">
+        <span class="ph-glyph">🎯</span>
+        <span class="ph-title">PUTTING · GREEN READ</span>
+        <span class="ph-sub">log per putt · slope scan in next pass</span>
+      </div>
+      <div class="wx-grid">
+        <div class="wx-cell"><div class="wx-label">DIST</div><div class="wx-value" id="p-dist" style="color:var(--green); text-shadow:0 0 5px var(--green);">—</div><div class="wx-sub">m</div></div>
+        <div class="wx-cell"><div class="wx-label">BREAK</div><div class="wx-value" id="p-break" style="color:var(--green); text-shadow:0 0 5px var(--green);">—</div></div>
+        <div class="wx-cell"><div class="wx-label">PUTTS</div><div class="wx-value" id="p-putts" style="color:var(--green); text-shadow:0 0 5px var(--green);">0</div></div>
+      </div>
+      <div class="controls" style="margin-top:10px;">
+        <button class="ctl" id="btn-putt-make">✓ MADE</button>
+        <button class="ctl warn" id="btn-putt-miss">✗ MISSED</button>
+      </div>
+    </section>
+  </div>
+
+</main>
+
+<!-- KEYS modal -->
+<div class="modal-bg" id="keys-modal">
+  <div class="modal">
+    <h2>⚙ API KEYS</h2>
+    <label>ANTHROPIC · x-api-key <span class="hint">(real Eagle/Birdie reads)</span></label>
+    <input id="key-anthropic" type="password" autocomplete="off" placeholder="sk-ant-…">
+    <label>ELEVENLABS · xi-api-key <span class="hint">(voice playback)</span></label>
+    <input id="key-xi" type="password" autocomplete="off" placeholder="sk_…">
+    <label>OPENWEATHERMAP · appid <span class="hint">(wind + conditions)</span></label>
+    <input id="key-owm" type="password" autocomplete="off" placeholder="…">
+    <label style="margin-top:14px; color:var(--eagle);">EAGLE VOICE ID <span class="hint">(blank = public British male George)</span></label>
+    <input id="key-voice-eagle" type="text" autocomplete="off" placeholder="JBFqnCBsd6RMkjVDRZzb (default)">
+    <label style="color:var(--birdie);">BIRDIE VOICE ID <span class="hint">(blank = public British female Lily)</span></label>
+    <input id="key-voice-birdie" type="text" autocomplete="off" placeholder="pFZP5JQG7iQjIQuC4Bku (default)">
+    <div class="key-status" id="key-status"></div>
+    <button class="ctl ask" id="key-eleven-diag" style="margin-top:14px; width:100%; font-size:10px;">▸ TEST KEY + LIST VOICES</button>
+    <div id="eleven-diag" class="diag-result" style="display:none;"></div>
+    <div class="row" style="margin-top:14px;">
+      <button class="ctl warn" id="key-cancel">CANCEL</button>
+      <button class="ctl" id="key-save">SAVE · TEST</button>
+    </div>
+  </div>
+</div>
+
+<!-- BAG modal -->
+<div class="modal-bg" id="bag-modal">
+  <div class="modal bag-modal">
+    <h2>⛳ MY BAG</h2>
+    <div style="font-size:9px; color:var(--dim); letter-spacing:1.5px; line-height:1.6;">
+      Edit your real club averages here. Range mode also auto-refines these as you log shots.
+    </div>
+    <div class="bag-list" id="bag-list"></div>
+    <button class="bag-add" id="btn-bag-add">+ ADD CLUB</button>
+    <div class="row">
+      <button class="ctl warn" id="bag-close-2">CLOSE</button>
+      <button class="ctl" id="bag-reset">↺ DEFAULTS</button>
+    </div>
+  </div>
+</div>
+
+<!-- COURSE PIN modal -->
+<div class="pin-modal-bg" id="pin-modal">
+  <div class="pin-hdr">
+    <span class="title" id="pin-title">PIN HOLES · 1/18</span>
+    <button class="close" id="pin-close">✕</button>
+  </div>
+  <div class="pin-info">
+    <div class="pi-row"><span class="pi-tag">HOLE</span><span id="pin-hole-summary">—</span></div>
+    <div class="pi-row"><span class="pi-tag">TEE</span><span class="pi-status" id="pin-tee-status">not pinned</span></div>
+    <div class="pi-row"><span class="pi-tag">GREEN</span><span class="pi-status" id="pin-green-status">not pinned</span></div>
+    <div class="pi-row"><span class="pi-tag">YARDS</span><span id="pin-yards">—</span></div>
+  </div>
+  <div class="pin-mode">
+    <button id="pin-mode-tee" class="active">▸ TAP TEE</button>
+    <button id="pin-mode-green">▸ TAP GREEN</button>
+  </div>
+  <div id="pin-map" class="pin-map"></div>
+  <div class="pin-foot">
+    <button id="pin-prev">◂ PREV</button>
+    <button id="pin-next">NEXT ▸</button>
+    <button id="pin-done" class="amber">✓ DONE</button>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+// Default voice IDs · British public voices (always accessible). The canon
+// Geordie clones the brief mentions (lfPT… / lYz9…) require the user to add
+// them to their own ElevenLabs library first — paste those in ⚙ KEYS to
+// override.
+const DEFAULT_VOICE_EAGLE  = 'JBFqnCBsd6RMkjVDRZzb'; // George · British male
+const DEFAULT_VOICE_BIRDIE = 'pFZP5JQG7iQjIQuC4Bku'; // Lily   · British female
+const CANON_VOICE_EAGLE    = 'lfPTQbwnu1oXQ9g6V0r4';
+const CANON_VOICE_BIRDIE   = 'lYz97gZSO1IVncLkczs4';
+const eagleVoiceId  = () => localStorage.getItem('caddy.voice.eagle')  || DEFAULT_VOICE_EAGLE;
+const birdieVoiceId = () => localStorage.getItem('caddy.voice.birdie') || DEFAULT_VOICE_BIRDIE;
+const CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
+
+// Beedles Lake · authoritative geodata from ProVisualizer KML (course id 2788)
+// White tees · par 72 · 6647 yds total. Tee/green/waypoints are ground truth.
+const BEEDLES_PAR_SEED = [
+  { n:1,  par:4, yds:344, si:15, name:'OPENER',
+    tee:{lat:52.7166269,lon:-1.0643401}, green:{lat:52.7175854,lon:-1.0599859},
+    layout:'Wide opening fairway, slight right turn into the green.', hazards:'Fairway bunker right. OOB far right.', line:'Aim left-centre · driver or 3-wood' },
+  { n:2,  par:4, yds:408, si:13, name:'WREAKE LEFT',
+    tee:{lat:52.7169518,lon:-1.0597573}, green:{lat:52.7197742,lon:-1.0567990},
+    layout:'Tight corridor with the river Wreake hugging the left side.', hazards:'River left. Trees right.', line:'Right-half · fade in · driver' },
+  { n:3,  par:3, yds:148, si:17, name:'POND',
+    tee:{lat:52.7200181,lon:-1.0555588}, green:{lat:52.7205608,lon:-1.0573633},
+    layout:'Short par 3 over water to a flat green.', hazards:'Pond fronting the green.', line:'Carry the centre · do not bail short' },
+  { n:4,  par:4, yds:418, si:5,  name:'LONG 4',
+    tee:{lat:52.7210279,lon:-1.0576207}, green:{lat:52.7187671,lon:-1.0618075},
+    waypoints:[{lat:52.7197274,lon:-1.0606744}],
+    layout:'Long par 4 doglegging through bunkered fairway.', hazards:'Bunkers either side at landing.', line:'Driver fairway · long iron in' },
+  { n:5,  par:4, yds:354, si:9,  name:'DOGLEG',
+    tee:{lat:52.7181083,lon:-1.0619947}, green:{lat:52.7201864,lon:-1.0586323},
+    waypoints:[{lat:52.7196131,lon:-1.0594873}],
+    layout:'Sharp dogleg.', hazards:'Trees inside corner.', line:'Cut corner with driver · or iron + wedge' },
+  { n:6,  par:5, yds:560, si:1,  name:'AVENUE',
+    tee:{lat:52.7200802,lon:-1.0574497}, green:{lat:52.7178005,lon:-1.0633816},
+    waypoints:[{lat:52.7183054,lon:-1.0598716},{lat:52.7176241,lon:-1.0622683}],
+    layout:'Stroke index 1 par 5. Avenue of trees, two doglegs.', hazards:'Tree-lined corridor. Cross-bunkers.', line:'Driver · 3W lay-up · wedge in' },
+  { n:7,  par:4, yds:410, si:7,  name:'PUNCHBOWL',
+    tee:{lat:52.7171516,lon:-1.0636723}, green:{lat:52.7202458,lon:-1.0656604},
+    waypoints:[{lat:52.7191451,lon:-1.0654363}],
+    layout:'Long par 4 with a green sitting in a bowl.', hazards:'Run-offs feed bunkers.', line:'Driver fairway · centre of green feeds' },
+  { n:8,  par:3, yds:183, si:11, name:'PAR 3 8',
+    tee:{lat:52.7196923,lon:-1.0663993}, green:{lat:52.7205203,lon:-1.0684819},
+    layout:'Mid-length par 3.', hazards:'Bunkers either side.', line:'Centre of green · two-putt par' },
+  { n:9,  par:5, yds:542, si:3,  name:'CLOSE TURN',
+    tee:{lat:52.7203556,lon:-1.0691569}, green:{lat:52.7169626,lon:-1.0645129},
+    waypoints:[{lat:52.7188292,lon:-1.0664020},{lat:52.7177717,lon:-1.0652275}],
+    layout:'Reachable par 5 in two for big hitters.', hazards:'OOB right past the corner.', line:'Driver · then 3W or iron lay-up' },
+  { n:10, par:4, yds:350, si:14, name:'BACK NINE OPEN',
+    tee:{lat:52.7158403,lon:-1.0651555}, green:{lat:52.7168087,lon:-1.0695547},
+    waypoints:[{lat:52.7163785,lon:-1.0686412}],
+    layout:'Wide opener for the back nine.', hazards:'Fairway bunker left.', line:'Right-centre · iron + wedge' },
+  { n:11, par:4, yds:357, si:10, name:'TIGHT TEE',
+    tee:{lat:52.7164352,lon:-1.0695466}, green:{lat:52.7141366,lon:-1.0725247},
+    waypoints:[{lat:52.7146505,lon:-1.0716112}],
+    layout:'Narrow tee shot through trees.', hazards:'Trees both sides.', line:'Iron off the tee · PW in' },
+  { n:12, par:4, yds:319, si:18, name:'SHORT 12',
+    tee:{lat:52.7138288,lon:-1.0721458}, green:{lat:52.7112125,lon:-1.0724689},
+    waypoints:[{lat:52.7119406,lon:-1.0723213}],
+    layout:'Short par 4. Drivable downwind.', hazards:'Water lurking right of green.', line:'Iron to 100 · driver only with wind' },
+  { n:13, par:3, yds:140, si:16, name:'WEDGE',
+    tee:{lat:52.7110406,lon:-1.0717372}, green:{lat:52.7120756,lon:-1.0709146},
+    layout:'Short par 3 with deep bunkers either side.', hazards:'Bunkers left and right.', line:'Centre of green · two-putt par' },
+  { n:14, par:4, yds:372, si:6,  name:'SLOPE',
+    tee:{lat:52.7139341,lon:-1.0737073}, green:{lat:52.7168798,lon:-1.0730377},
+    waypoints:[{lat:52.7157287,lon:-1.0727218}],
+    layout:'Sloping fairway from right to left.', hazards:'Ball runs left into rough.', line:'Aim right-half · club up for elevation' },
+  { n:15, par:4, yds:429, si:4,  name:'TOUGH 15',
+    tee:{lat:52.7172677,lon:-1.0733239}, green:{lat:52.7198219,lon:-1.0693090},
+    waypoints:[{lat:52.7190110,lon:-1.0707382}],
+    layout:'Long par 4 demanding two solid strikes.', hazards:'Bunkers short of green.', line:'Driver · long iron · centre of green' },
+  { n:16, par:4, yds:400, si:8,  name:'PARALLEL',
+    tee:{lat:52.7192252,lon:-1.0695565}, green:{lat:52.7163704,lon:-1.0719208},
+    waypoints:[{lat:52.7173919,lon:-1.0717426}],
+    layout:'Long par 4 alongside the previous hole.', hazards:'Cross-bunkers on the approach.', line:'Driver · 5-iron · pin centre' },
+  { n:17, par:5, yds:496, si:2,  name:'LONG 17',
+    tee:{lat:52.7158079,lon:-1.0716274}, green:{lat:52.7193791,lon:-1.0684666},
+    waypoints:[{lat:52.7178230,lon:-1.0702594},{lat:52.7188418,lon:-1.0691101}],
+    layout:'Hardest par 5 on the course.', hazards:'Bunker complex front-right.', line:'Driver · iron lay-up · wedge to centre' },
+  { n:18, par:4, yds:417, si:12, name:'CLUBHOUSE',
+    tee:{lat:52.7190506,lon:-1.0680184}, green:{lat:52.7162156,lon:-1.0648549},
+    waypoints:[{lat:52.7171390,lon:-1.0660249}],
+    layout:'Finishing par 4 alongside the lake.', hazards:'Lake left for the entire hole.', line:'Right-side all the way · safe par' },
+];
+
+// Boss's actual bag · 14 clubs. Refine averages in ⛳ BAG modal.
+const BAG_DEFAULT = [
+  { id:'driver', name:'DRV', avg:210 },
+  { id:'3w',     name:'3W',  avg:185 },
+  { id:'5w',     name:'5W',  avg:170 },
+  { id:'hybrid', name:'HY',  avg:160 },
+  { id:'3i',     name:'3I',  avg:155 },
+  { id:'4i',     name:'4I',  avg:145 },
+  { id:'5i',     name:'5I',  avg:135 },
+  { id:'6i',     name:'6I',  avg:125 },
+  { id:'7i',     name:'7I',  avg:115 },
+  { id:'8i',     name:'8I',  avg:105 },
+  { id:'9i',     name:'9I',  avg:95  },
+  { id:'pw',     name:'PW',  avg:80  },
+  { id:'sw',     name:'SW',  avg:60  },
+  { id:'lw60',   name:'60°', avg:50  },
+];
+
+const THEORY = [
+  'Hit to the safest target. Aim away from trouble before glory.',
+  'Two-putt is fine. Don’t chase the hero putt when a tap-in is there.',
+  'Into the wind: club up, swing easy. Tempo wins.',
+  'Always check pin position before pulling a club. The number lies if you don’t.',
+  'If unsure between clubs, take the longer one and grip down half an inch.',
+  'Bunker shot: open face, open stance, splash sand a hand’s width behind the ball.',
+  'Downhill putts break less than they look. Trust the line, soften the speed.',
+  'Same pre-shot routine on every shot. Tempo is built before the takeaway.',
+  'Bad lie? One more club, tighter grip, accept the lower flight.',
+  'The last three holes are a separate round. Reset and play them clean.',
+];
+
+const SAVE_KEY = 'caddy.round.v6';
+// Beedles ships pre-mapped from authoritative geodata (no manual pinning needed).
+const beedlesCourse = () => ({
+  id: 'beedles', name: 'Beedles Lake', createdAt: Date.now(), source: 'provisualizer-kml',
+  holes: BEEDLES_PAR_SEED.map(h => ({
+    n: h.n, par: h.par, yds: h.yds, si: h.si, name: h.name,
+    layout: h.layout, hazards: h.hazards, line: h.line,
+    tee: h.tee ? { ...h.tee } : null,
+    green: h.green ? { ...h.green } : null,
+    waypoints: h.waypoints ? h.waypoints.map(w => ({ ...w })) : [],
+  })),
+});
+// Generic seed for any +NEW course Boss creates — par 4 placeholders, no coords.
+const blankCourse = (id, name) => ({
+  id, name, createdAt: Date.now(), source: 'manual',
+  holes: Array.from({ length: 18 }, (_, i) => ({
+    n: i + 1, par: 4, yds: 350, si: i + 1, name: 'HOLE ' + (i + 1),
+    layout: 'walk the hole or pin tee + green to enable distance', hazards: '—', line: '—',
+    tee: null, green: null, waypoints: [],
+  })),
+});
+const seedCourse = blankCourse; // backward-compat alias
+const blankState = () => ({
+  mode: 'course',
+  pos: null, hole: null, previewHole: null, distM: null,
+  selectedClubId: null,
+  shotsByHole: {}, shotsLog: {},
+  holeStartTs: null, holeTimings: [], holeEnds: [],
+  wind: null, owmRaw: null, lastWindMs: 0,
+  bearing: null,
+  rangeShots: {}, rangeClubId: null,
+  garden: { make: 0, miss: 0 }, greenPutts: 0,
+  recording: null, roundLive: false, roundStartTs: null,
+  feed: [], theoryIdx: 0,
+  bag: BAG_DEFAULT.map(c => ({ ...c })),
+  courses: { 'beedles': beedlesCourse() },
+  currentCourseId: 'beedles',
+  armed: false, armedAt: null,
+});
+let state = blankState();
+
+const persist = () => {
+  try {
+    const snap = { ...state }; delete snap.recording; delete snap.armed; delete snap.armedAt;
+    localStorage.setItem(SAVE_KEY, JSON.stringify(snap));
+  } catch (e) {}
+};
+const restore = () => {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY); if (!raw) return;
+    const saved = JSON.parse(raw);
+    state = { ...blankState(), ...saved, recording: null, armed: false, armedAt: null };
+    if (!state.courses) state.courses = {};
+    // Always upgrade Beedles to the latest authoritative geodata
+    const existingBeedles = state.courses['beedles'];
+    const fresh = beedlesCourse();
+    if (!existingBeedles || existingBeedles.source !== 'provisualizer-kml') {
+      state.courses['beedles'] = fresh;
+    } else {
+      // Existing course is from authoritative source — backfill any missing fields per hole
+      fresh.holes.forEach(fh => {
+        const eh = existingBeedles.holes.find(h => h.n === fh.n);
+        if (!eh) { existingBeedles.holes.push(fh); return; }
+        if (!eh.tee || eh.tee.lat == null) eh.tee = fh.tee;
+        if (!eh.green || eh.green.lat == null) eh.green = fh.green;
+        if (!Array.isArray(eh.waypoints) || eh.waypoints.length === 0) eh.waypoints = fh.waypoints;
+        // Keep par/yds/si/name authoritative
+        eh.par = fh.par; eh.yds = fh.yds; eh.si = fh.si;
+        if (!eh.layout || eh.layout.startsWith('walk')) { eh.layout = fh.layout; eh.hazards = fh.hazards; eh.line = fh.line; eh.name = fh.name; }
+      });
+    }
+    if (!state.courses[state.currentCourseId]) state.currentCourseId = 'beedles';
+    if (!Array.isArray(state.bag) || state.bag.length === 0) state.bag = BAG_DEFAULT.map(c => ({ ...c }));
+  } catch (e) {}
+};
+restore();
+
+const $ = id => document.getElementById(id);
+const escapeHtml = (s) => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const toast = (msg, color) => {
+  const t = document.createElement('div');
+  t.className = 'toast'; t.textContent = msg;
+  if (color) { t.style.borderColor = color; t.style.color = color; t.style.boxShadow = `0 0 18px ${color}`; t.style.textShadow = `0 0 4px ${color}`; }
+  document.body.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 2400);
+};
+const haversineM = (lat1, lon1, lat2, lon2) => {
+  const R = 6371000;
+  const dLat = (lat2-lat1)*Math.PI/180, dLon = (lon2-lon1)*Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+};
+const bearingDeg = (lat1, lon1, lat2, lon2) => {
+  const φ1=lat1*Math.PI/180, φ2=lat2*Math.PI/180, Δλ=(lon2-lon1)*Math.PI/180;
+  const y=Math.sin(Δλ)*Math.cos(φ2), x=Math.cos(φ1)*Math.sin(φ2) - Math.sin(φ1)*Math.cos(φ2)*Math.cos(Δλ);
+  return ((Math.atan2(y, x)*180/Math.PI)+360)%360;
+};
+const compassFromDeg = (d) => d == null ? '—' : ['N','NE','E','SE','S','SW','W','NW'][Math.round(d/45)%8];
+const fmtTime = (ts) => { const d = new Date(ts); return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0') + ':' + String(d.getSeconds()).padStart(2,'0'); };
+const clubById = (id) => state.bag.find(c => c.id === id) || null;
+const currentCourse = () => state.courses[state.currentCourseId] || null;
+const holeByN = (n) => { const c = currentCourse(); return c ? c.holes.find(h => h.n === n) : null; };
+
+// Web Audio
+let audioCtx = null;
+const ensureAudioCtx = () => { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); return audioCtx; };
+const playChime = (kind) => {
+  try {
+    const ctx = ensureAudioCtx(); const t0 = ctx.currentTime;
+    const tones = kind === 'eagle' ? [523, 784, 1046, 1318]
+                : kind === 'birdie' ? [440, 660, 880]
+                : kind === 'par'    ? [523, 659]
+                : kind === 'arm'    ? [880, 1100]
+                : [220];
+    tones.forEach((f, i) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine'; o.frequency.value = f;
+      const start = t0 + i*0.1, dur = 0.24;
+      g.gain.setValueAtTime(0.0001, start);
+      g.gain.exponentialRampToValueAtTime(0.16, start + 0.04);
+      g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(start); o.stop(start + dur + 0.05);
+    });
+  } catch (e) {}
+};
+
+// Wake Lock
+let wakeLock = null;
+const requestWakeLock = async () => { try { if ('wakeLock' in navigator) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); } } catch (e) {} };
+const releaseWakeLock = () => { if (wakeLock) { wakeLock.release().catch(()=>{}); wakeLock = null; } };
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && state.roundLive && !wakeLock) requestWakeLock(); });
+
+// Feed
+const feedAdd = (tag, text) => {
+  state.feed.unshift({ ts: Date.now(), tag, text });
+  if (state.feed.length > 200) state.feed.pop();
+  renderFeed(); persist();
+};
+const renderFeed = () => {
+  const $list = $('feed-list');
+  if (state.feed.length === 0) { $list.innerHTML = '<div class="feed-empty">no events yet · tap ▸ START ROUND</div>'; return; }
+  $list.innerHTML = state.feed.slice(0, 60).map(e => `
+    <div class="feed-row">
+      <span class="feed-time">${fmtTime(e.ts)}</span>
+      <span class="feed-tag ${e.tag}">${e.tag.toUpperCase()}</span>
+      <span class="feed-text">${escapeHtml(e.text)}</span>
+    </div>
+  `).join('');
+};
+
+// Avatars
+const setCaption = (who, text) => {
+  const cap = $('caption'); cap.classList.remove('empty', 'eagle', 'birdie');
+  cap.textContent = text; if (who) cap.classList.add(who);
+};
+const setAvState = (who, text) => { const el = $('av-' + who + '-state'); if (el) el.textContent = text; };
+const avSpeakStart = (who) => { $('av-' + who).classList.add('speaking'); setAvState(who, (who === 'eagle' ? 'STRATEGIC' : 'EXECUTION') + ' · SPEAKING'); };
+const avSpeakStop  = (who) => { $('av-' + who).classList.remove('speaking'); setAvState(who, (who === 'eagle' ? 'STRATEGIC' : 'EXECUTION') + ' · IDLE'); };
+const avThink = (who, on) => { $('av-' + who).classList.toggle('thinking', !!on); setAvState(who, (who === 'eagle' ? 'STRATEGIC' : 'EXECUTION') + ' · ' + (on ? 'THINKING' : 'IDLE')); };
+
+// ElevenLabs
+// ── Browser-native Web Speech (Siri-quality on iOS, no API key, no 404) ──
+let _voicesCache = null;
+const refreshVoices = () => { if (window.speechSynthesis) _voicesCache = speechSynthesis.getVoices() || []; };
+if (window.speechSynthesis) {
+  refreshVoices();
+  speechSynthesis.addEventListener?.('voiceschanged', refreshVoices);
+}
+const pickBrowserVoice = (who) => {
+  const all = _voicesCache || [];
+  if (!all.length) return null;
+  const british = all.filter(v => /^en[-_]GB/i.test(v.lang));
+  const englishAny = all.filter(v => /^en/i.test(v.lang));
+  const pool = british.length ? british : (englishAny.length ? englishAny : all);
+  if (who === 'eagle') {
+    // Male British preferred — these are Apple/Microsoft system voices
+    return pool.find(v => /\b(daniel|oliver|arthur|albert|george|jamie|gordon|ralph|reed|aaron|fred|alex)\b/i.test(v.name))
+        || pool.find(v => /male/i.test(v.name))
+        || pool[0];
+  }
+  return pool.find(v => /\b(serena|kate|martha|fiona|samantha|karen|moira|tessa|catherine|allison|ava|emily|joelle|lily)\b/i.test(v.name))
+      || pool.find(v => /female/i.test(v.name))
+      || pool[Math.min(1, pool.length - 1)];
+};
+const speakViaWebSpeech = (text, who) => {
+  if (!window.speechSynthesis) { setTimeout(() => avSpeakStop(who), Math.min(text.length * 55, 6000)); return false; }
+  const start = () => {
+    try {
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'en-GB';
+      const v = pickBrowserVoice(who);
+      if (v) u.voice = v;
+      u.rate = 0.96;
+      u.pitch = who === 'eagle' ? 0.88 : 1.12;
+      u.volume = 1;
+      u.onend   = () => avSpeakStop(who);
+      u.onerror = () => avSpeakStop(who);
+      speechSynthesis.cancel(); // drop any queued utterance
+      speechSynthesis.speak(u);
+    } catch (e) { avSpeakStop(who); }
+  };
+  if (!_voicesCache || _voicesCache.length === 0) {
+    refreshVoices();
+    if (!_voicesCache || _voicesCache.length === 0) {
+      // iOS sometimes loads voices async — wait briefly then start
+      setTimeout(() => { refreshVoices(); start(); }, 350);
+      return true;
+    }
+  }
+  start();
+  return true;
+};
+
+const elevenFetch = (text, voiceId, xi) => fetch('https://api.elevenlabs.io/v1/text-to-speech/' + voiceId, {
+  method: 'POST',
+  headers: { 'xi-api-key': xi, 'Content-Type': 'application/json' },
+  body: JSON.stringify({ text, model_id: 'eleven_turbo_v2_5', voice_settings: { stability:0.5, similarity_boost:0.75 } })
+});
+const speak = async (text, voiceId, who) => {
+  setCaption(who, text); feedAdd(who, text); avSpeakStart(who);
+  const xi = localStorage.getItem('caddy.elevenlabs.key');
+  // No key OR no voice id → straight to browser TTS
+  if (!xi || !voiceId) { speakViaWebSpeech(text, who); return; }
+  try {
+    let r = await elevenFetch(text, voiceId, xi);
+    if (r.status === 404) {
+      const fb = who === 'eagle' ? DEFAULT_VOICE_EAGLE : DEFAULT_VOICE_BIRDIE;
+      if (voiceId !== fb) {
+        feedAdd('shot', `voice ${voiceId.slice(0,6)}… 404 · trying public default`);
+        r = await elevenFetch(text, fb, xi);
+      }
+    }
+    if (!r.ok) {
+      // Any HTTP error (401 bad key, 404 voice gone, 422 malformed, 429 quota) → browser TTS
+      const reason = r.status === 401 ? 'bad key'
+                  : r.status === 404 ? 'voice not in library'
+                  : r.status === 429 ? 'quota'
+                  : 'HTTP ' + r.status;
+      toast('ElevenLabs ' + reason + ' · using browser voice', '#f59e0b');
+      feedAdd('shot', `elevenlabs ${reason} · browser TTS fallback`);
+      speakViaWebSpeech(text, who);
+      return;
+    }
+    const blob = await r.blob();
+    const audio = new Audio(URL.createObjectURL(blob));
+    audio.addEventListener('ended', () => avSpeakStop(who));
+    audio.addEventListener('error', () => { speakViaWebSpeech(text, who); });
+    audio.play().catch(e => { speakViaWebSpeech(text, who); });
+  } catch (e) {
+    feedAdd('shot', 'voice net error · browser TTS fallback');
+    speakViaWebSpeech(text, who);
+  }
+};
+const speakEagleRaw  = (t) => speak(t, eagleVoiceId(),  'eagle');
+const speakBirdieRaw = (t) => speak(t, birdieVoiceId(), 'birdie');
+
+// Camera frame capture · scaled JPEG data URL
+const captureFrame = (videoEl, scale = 0.5, quality = 0.7) => {
+  if (!videoEl || !videoEl.videoWidth) return null;
+  const canvas = document.createElement('canvas');
+  canvas.width  = Math.round(videoEl.videoWidth  * scale);
+  canvas.height = Math.round(videoEl.videoHeight * scale);
+  canvas.getContext('2d').drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL('image/jpeg', quality);
+};
+
+// Claude vision · multi-image input
+const askClaudeVision = async (system, text, imageDataUrls, maxTokens = 400) => {
+  const key = localStorage.getItem('caddy.anthropic.key'); if (!key) return null;
+  const content = imageDataUrls.map(url => ({
+    type: 'image',
+    source: { type: 'base64', media_type: 'image/jpeg', data: url.split(',')[1] }
+  }));
+  content.push({ type: 'text', text });
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: CLAUDE_MODEL, max_tokens: maxTokens, system,
+      messages: [{ role: 'user', content }],
+    }),
+  });
+  if (!r.ok) {
+    const err = await r.text().catch(() => '');
+    throw new Error('claude vision HTTP ' + r.status + ' · ' + err.slice(0, 200));
+  }
+  const j = await r.json();
+  return (j.content?.[0]?.text || '').trim();
+};
+
+// Claude
+const askClaude = async (system, user, maxTokens=240) => {
+  const key = localStorage.getItem('caddy.anthropic.key'); if (!key) return null;
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true', 'content-type': 'application/json' },
+    body: JSON.stringify({ model: CLAUDE_MODEL, max_tokens: maxTokens, system, messages: [{ role: 'user', content: user }] }),
+  });
+  if (!r.ok) { const err = await r.text().catch(() => ''); throw new Error('claude HTTP ' + r.status + ' · ' + err.slice(0, 200)); }
+  const j = await r.json();
+  return (j.content?.[0]?.text || '').trim();
+};
+
+const buildContext = () => {
+  const h = state.hole, d = state.distM, wind = state.wind;
+  const wd = (wind && wind.speedMph != null && state.pos && h && h.green) ? windDescriptor() : null;
+  const club = clubById(state.selectedClubId);
+  const ends = state.holeEnds;
+  const totalShots = ends.reduce((a,e) => a + e.shots, 0);
+  const totalPar   = ends.reduce((a,e) => a + e.par,   0);
+  const vsPar = ends.length ? totalShots - totalPar : 0;
+  const lastEnd = ends[ends.length - 1];
+  const course = currentCourse();
+  const lines = [];
+  lines.push(`Course: ${course?.name || 'unknown'} (parkland, par ${course ? course.holes.reduce((a,h)=>a+h.par,0) : '—'}).`);
+  if (h) {
+    lines.push(`Current hole: ${h.n} (${h.name}) · par ${h.par} · ${h.yds} yds · stroke index ${h.si}.`);
+    lines.push(`Layout: ${h.layout}`);
+    lines.push(`Hazards: ${h.hazards}`);
+    lines.push(`Default line: ${h.line}`);
+  }
+  if (d != null) lines.push(`Distance to pin: ${Math.round(d)}m / ${Math.round(d * 1.094)} yds.`);
+  if (wd) lines.push(`Wind: ${wd.w} mph ${wd.dir} relative to your shot.`);
+  else if (wind?.speedMph != null) lines.push(`Wind: ${Math.round(wind.speedMph)} mph from ${compassFromDeg(wind.deg)}.`);
+  if (state.owmRaw?.main) lines.push(`Conditions: ${Math.round(state.owmRaw.main.temp)}°C · ${state.owmRaw.main.humidity}% humidity · ${state.owmRaw.weather?.[0]?.description || ''}.`);
+  lines.push(`Boss's bag (avg metres): ${state.bag.map(c => `${c.name} ${c.avg}`).join(', ')}.`);
+  if (club) lines.push(`Currently selected club: ${club.name} (avg ${club.avg}m).`);
+  if (ends.length) {
+    lines.push(`Round so far: ${ends.length} holes done, ${totalShots} shots, ${vsPar > 0 ? '+' : ''}${vsPar} vs par.`);
+    if (lastEnd) lines.push(`Last hole: H${lastEnd.n} par ${lastEnd.par}, ${lastEnd.shots} shots (${lastEnd.diff > 0 ? '+' : ''}${lastEnd.diff}).`);
+  }
+  return lines.join('\n');
+};
+
+const EAGLE_SYSTEM = `You are EAGLE, the strategic golf caddy for Boss. Voice: Geordie (north-east England), confident, brief, tactical. Maximum 3 short sentences. Use real metres, real club names from Boss's bag. Speak in second person. Never apologise or preface. Never mention being an AI.`;
+const BIRDIE_SYSTEM = `You are BIRDIE, the per-shot execution caddy. Voice: Geordie female, focused, immediate. Maximum 2 short sentences. One swing thought max. Never apologise or preface. Never mention being an AI.`;
+
+const CADDY_SYSTEM = `You are the KAM CADDY — a two-voice golf caddy made of EAGLE (strategic, Geordie male, calm authority — hole shape, club selection, course management, conditions, score state) and BIRDIE (execution, Geordie female, sharp and immediate — swing thoughts, target line, tempo, contact cues).
+
+Decide which voice should answer Boss's question:
+- EAGLE answers strategic / planning / read-the-situation questions.
+- BIRDIE answers per-shot / per-swing / how-do-I-hit-this questions.
+
+Begin your response with exactly [EAGLE] or [BIRDIE] on its own line at the very start, then the spoken response on the next line. Maximum 3 short sentences for Eagle, 2 for Birdie. Speak in second person. Geordie tone for the chosen character. Never apologise or preface. Never mention being an AI.`;
+
+const speakEagle = async (fallback) => {
+  const ctx = buildContext();
+  if (!localStorage.getItem('caddy.anthropic.key')) { speakEagleRaw(fallback); return; }
+  avThink('eagle', true);
+  try {
+    const txt = await askClaude(EAGLE_SYSTEM, ctx + '\n\nGive Boss the strategic read for this exact moment.');
+    avThink('eagle', false);
+    if (txt) speakEagleRaw(txt); else speakEagleRaw(fallback);
+  } catch (e) { avThink('eagle', false); feedAdd('eagle', '[claude err: ' + e.message + '] ' + fallback); speakEagleRaw(fallback); }
+};
+const speakBirdie = async (fallback, clubName) => {
+  const ctx = buildContext();
+  if (!localStorage.getItem('caddy.anthropic.key')) { speakBirdieRaw(fallback); return; }
+  avThink('birdie', true);
+  try {
+    const prompt = clubName ? `${ctx}\n\nBoss just pulled the ${clubName}. Give one execution cue.` : `${ctx}\n\nGive Boss one execution cue right now.`;
+    const txt = await askClaude(BIRDIE_SYSTEM, prompt, 160);
+    avThink('birdie', false);
+    if (txt) speakBirdieRaw(txt); else speakBirdieRaw(fallback);
+  } catch (e) { avThink('birdie', false); feedAdd('birdie', '[claude err: ' + e.message + '] ' + fallback); speakBirdieRaw(fallback); }
+};
+
+const askCaddy = async (q) => {
+  feedAdd('you', q);
+  if (!localStorage.getItem('caddy.anthropic.key')) {
+    speakEagleRaw('Drop your Anthropic key in the keys panel and I can answer that properly.');
+    return;
+  }
+  // Pre-mark both as thinking; correct one stays speaking.
+  avThink('eagle', true); avThink('birdie', true);
+  try {
+    const ctx = buildContext();
+    const prompt = `Live context:\n${ctx}\n\nBoss asks: "${q}"\n\nDecide which voice answers, then respond in that voice.`;
+    const raw = await askClaude(CADDY_SYSTEM, prompt, 280);
+    avThink('eagle', false); avThink('birdie', false);
+    const m = raw && raw.match(/^\s*\[(EAGLE|BIRDIE)\]\s*([\s\S]+)$/i);
+    if (m) {
+      const who = m[1].toLowerCase();
+      const text = m[2].trim();
+      if (who === 'eagle') speakEagleRaw(text); else speakBirdieRaw(text);
+    } else {
+      speakEagleRaw(raw || 'Try that again, the line broke up.');
+    }
+  } catch (e) {
+    avThink('eagle', false); avThink('birdie', false);
+    speakEagleRaw('Network blocked — check the Anthropic key. ' + e.message);
+  }
+};
+$('ask-send').addEventListener('click', () => {
+  const q = $('ask-input').value.trim(); if (!q) return;
+  $('ask-input').value = ''; askCaddy(q);
+});
+$('ask-input').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('ask-send').click(); } });
+document.querySelectorAll('#ask-quick button').forEach(b => b.addEventListener('click', () => askCaddy(b.dataset.q)));
+
+// KEYS modal
+const refreshKeysButton = () => {
+  const a = !!localStorage.getItem('caddy.anthropic.key');
+  const x = !!localStorage.getItem('caddy.elevenlabs.key');
+  const o = !!localStorage.getItem('caddy.owm.key');
+  const btn = $('hdr-keys');
+  const allOk = a && x && o; const noneOk = !a && !x && !o;
+  btn.classList.toggle('warn', noneOk); btn.classList.toggle('amber', !allOk && !noneOk);
+  btn.textContent = allOk ? '✓ KEYS' : (noneOk ? '⚙ KEYS' : '◐ KEYS');
+};
+const renderKeyStatus = () => {
+  const items = [['anthropic','CLAUDE'],['elevenlabs','VOICE'],['owm','WEATHER']]
+    .map(([s,l]) => { const ok = !!localStorage.getItem(`caddy.${s}.key`); return `<span class="${ok?'ok':'miss'}">${ok?'✓':'✗'} ${l}</span>`; }).join(' &nbsp; ');
+  $('key-status').innerHTML = items;
+};
+$('hdr-keys').addEventListener('click', () => {
+  $('key-anthropic').value     = localStorage.getItem('caddy.anthropic.key') || '';
+  $('key-xi').value            = localStorage.getItem('caddy.elevenlabs.key') || '';
+  $('key-owm').value           = localStorage.getItem('caddy.owm.key') || '';
+  $('key-voice-eagle').value   = localStorage.getItem('caddy.voice.eagle') || '';
+  $('key-voice-birdie').value  = localStorage.getItem('caddy.voice.birdie') || '';
+  renderKeyStatus(); $('keys-modal').classList.add('open');
+});
+$('key-cancel').addEventListener('click', () => $('keys-modal').classList.remove('open'));
+// ── ElevenLabs key + voice diagnostic ─────────────────────────
+const cleanKey = (s) => (s || '').replace(/\s+/g, '').replace(/[^\x20-\x7E]/g, '');
+const elevenDiagnose = async () => {
+  const raw = $('key-xi').value || localStorage.getItem('caddy.elevenlabs.key') || '';
+  const xi = cleanKey(raw);
+  const $diag = $('eleven-diag');
+  $diag.style.display = 'block';
+  if (!xi) { $diag.innerHTML = '<span class="miss">paste an ElevenLabs key first</span>'; return; }
+  // Reflect cleaning in the input so user sees what's actually being sent
+  if (raw !== xi) $('key-xi').value = xi;
+  const prefix = xi.slice(0, 5), suffix = xi.slice(-4), len = xi.length;
+  const keyId  = `<b style="color:var(--text);">${escapeHtml(prefix)}…${escapeHtml(suffix)}</b> · ${len} chars`;
+  $diag.innerHTML = `<span class="ok">testing ${keyId}</span>`;
+  try {
+    const u = await fetch('https://api.elevenlabs.io/v1/user', { headers: { 'xi-api-key': xi } });
+    if (u.status === 401) {
+      const body = await u.text().catch(() => '');
+      // Detect what kind of key was actually pasted
+      let keyHint = '';
+      if (xi.startsWith('sk-ant-')) keyHint = `<div style="color:var(--warn); margin-top:6px;">▸ this looks like an <b>Anthropic</b> key (starts <code>sk-ant-</code>), not ElevenLabs. Paste it in the ANTHROPIC field above instead.</div>`;
+      else if (xi.startsWith('sk-')   && !xi.startsWith('sk_')) keyHint = `<div style="color:var(--warn); margin-top:6px;">▸ this looks like an <b>OpenAI</b> key (starts <code>sk-</code>). ElevenLabs keys start <code>sk_</code> with an underscore.</div>`;
+      else if (xi.startsWith('xi-'))   keyHint = `<div style="color:var(--warn); margin-top:6px;">▸ <code>xi-…</code> is an old ElevenLabs format · regenerate at elevenlabs.io · new keys start <code>sk_</code></div>`;
+      else if (xi.startsWith('sk_'))   keyHint = `<div style="color:var(--green); margin-top:6px;">▸ key prefix looks like ElevenLabs (sk_) · so the issue is account-level not format</div>`;
+      else                             keyHint = `<div style="color:var(--warn); margin-top:6px;">▸ unrecognised prefix <code>${escapeHtml(prefix)}</code> · ElevenLabs keys start <code>sk_</code></div>`;
+
+      $diag.innerHTML = `
+        <div class="miss">✗ key ${keyId} rejected (401)</div>
+        ${keyHint}
+        <div style="margin-top:8px; padding:6px 8px; background:var(--bg-2); border:1px dashed var(--warn); font-size:9px; color:var(--text); word-break:break-all; line-height:1.5;">
+          <div style="color:var(--dim); letter-spacing:1px; font-size:8px; margin-bottom:3px;">RAW RESPONSE FROM ELEVENLABS</div>
+          ${escapeHtml(body || '(empty body)')}
+        </div>
+        <div style="margin-top:10px; font-size:9px; line-height:1.7; color:var(--text);">
+          <div style="color:var(--green); letter-spacing:1px; margin-bottom:4px;">▸ FASTEST WAY TO ISOLATE THE PROBLEM</div>
+          <div>1. Open <code style="color:var(--green)">elevenlabs.io/app/voice-lab</code> in another tab, signed in to your ElevenLabs.</div>
+          <div>2. Click any voice → <b>generate speech</b>. Type something, hit play.</div>
+          <div>3. <b>If you hear sound</b> → your account is fine. The API key just lacks permissions. Regenerate at <code>elevenlabs.io/app/settings/api-keys</code> with all permissions checked. Paste the new <code>sk_…</code> here.</div>
+          <div>4. <b>If you don't hear sound</b> → account is the problem. Check email verification at <code>elevenlabs.io/app/settings</code>. Confirm subscription tier shown (Free is fine but must be activated).</div>
+        </div>
+        <div style="margin-top:10px; font-size:9px; line-height:1.7; color:var(--dim);">
+          <div style="color:var(--text); margin-bottom:4px;">other common causes:</div>
+          <div>• fresh account with unverified email — API stays disabled until you click the verification link</div>
+          <div>• generated key without text_to_speech + voices_read permissions checked</div>
+          <div>• copied from a "..." menu rather than the visible key (sometimes copies the wrong row)</div>
+          <div>• free tier exhausted — check character usage at elevenlabs.io/app/settings/billing</div>
+        </div>
+        <div style="margin-top:10px; padding:6px 8px; background:var(--bg-2); border:1px solid var(--green); font-size:9px;">
+          <span style="color:var(--green);">browser-native voices still work</span><span style="color:var(--dim);"> · tap SAVE and you'll hear Eagle/Birdie via system TTS while you fix this</span>
+        </div>
+      `;
+      return;
+    }
+    if (u.status === 403) {
+      const body = await u.text().catch(() => '');
+      $diag.innerHTML = `<div class="miss">✗ key ${keyId} forbidden (403) · key is valid but lacks API permission</div><div style="margin-top:6px; font-size:9px; color:var(--dim); word-break:break-all;">${escapeHtml(body)}</div>`;
+      return;
+    }
+    if (!u.ok) {
+      const body = await u.text().catch(() => '');
+      $diag.innerHTML = `<div class="miss">✗ key ${keyId} · HTTP ${u.status}</div><div style="margin-top:6px; font-size:9px; color:var(--dim); word-break:break-all;">${escapeHtml(body)}</div>`;
+      return;
+    }
+    const userInfo = await u.json();
+    const tier = userInfo?.subscription?.tier || userInfo?.subscription?.status || 'unknown';
+    const charsLeft = userInfo?.subscription?.character_count != null
+      ? `${userInfo.subscription.character_limit - userInfo.subscription.character_count} chars left`
+      : '';
+    const v = await fetch('https://api.elevenlabs.io/v1/voices', { headers: { 'xi-api-key': xi } });
+    if (!v.ok) { $diag.innerHTML = `<span class="ok">✓ key OK · tier ${escapeHtml(tier)}</span><br><span class="miss">voices fetch failed: HTTP ${v.status}</span>`; return; }
+    const voicesData = await v.json();
+    const voices = voicesData.voices || [];
+    const eagleCfg  = ($('key-voice-eagle').value || '').trim()  || localStorage.getItem('caddy.voice.eagle')  || '';
+    const birdieCfg = ($('key-voice-birdie').value || '').trim() || localStorage.getItem('caddy.voice.birdie') || '';
+    const hasCanonE = voices.find(x => x.voice_id === CANON_VOICE_EAGLE);
+    const hasCanonB = voices.find(x => x.voice_id === CANON_VOICE_BIRDIE);
+    let html = `<div class="diag-head">✓ KEY VALID · TIER: ${escapeHtml(tier).toUpperCase()}${charsLeft ? ' · ' + escapeHtml(charsLeft) : ''}</div>`;
+    html += `<div style="font-size:9px; color:var(--dim); margin-bottom:6px;">${voices.length} voices in your library · tap EAGLE / BIRDIE to assign</div>`;
+    voices.forEach(vi => {
+      const id = vi.voice_id;
+      const name = vi.name || '(unnamed)';
+      const isCanonE = id === CANON_VOICE_EAGLE;
+      const isCanonB = id === CANON_VOICE_BIRDIE;
+      const isCfgE = id === eagleCfg;
+      const isCfgB = id === birdieCfg;
+      const tags = [];
+      if (isCanonE) tags.push('canon EGL');
+      if (isCanonB) tags.push('canon BRD');
+      if (isCfgE)  tags.push('current EGL');
+      if (isCfgB)  tags.push('current BRD');
+      html += `<div class="diag-row">
+        <button data-voice-id="${escapeHtml(id)}" data-role="eagle"  class="diag-pick-eagle">EGL</button>
+        <button data-voice-id="${escapeHtml(id)}" data-role="birdie" class="diag-pick-birdie">BRD</button>
+        <span class="diag-name">${escapeHtml(name)}</span>
+        <span class="diag-id">${escapeHtml(id.slice(0,8))}…</span>
+        ${tags.length ? `<span class="diag-tag">${tags.join(' · ')}</span>` : ''}
+      </div>`;
+    });
+    html += `<div style="margin-top:8px; padding-top:6px; border-top:1px solid var(--bg-line); font-size:9px; line-height:1.6;">`;
+    html += hasCanonE ? '<div class="ok">✓ canon Eagle voice IS in your library</div>' : `<div class="miss">✗ canon Eagle (${CANON_VOICE_EAGLE.slice(0,8)}…) NOT in your library — open elevenlabs.io, search VoiceLab/Voice Library for that ID, click ADD</div>`;
+    html += hasCanonB ? '<div class="ok">✓ canon Birdie voice IS in your library</div>' : `<div class="miss">✗ canon Birdie (${CANON_VOICE_BIRDIE.slice(0,8)}…) NOT in your library — same fix</div>`;
+    html += `</div>`;
+    $diag.innerHTML = html;
+    // Wire role-pick buttons
+    $diag.querySelectorAll('.diag-pick-eagle').forEach(b => b.addEventListener('click', () => {
+      $('key-voice-eagle').value = b.dataset.voiceId;
+      toast('Eagle voice set · tap SAVE', '#fbbf24');
+    }));
+    $diag.querySelectorAll('.diag-pick-birdie').forEach(b => b.addEventListener('click', () => {
+      $('key-voice-birdie').value = b.dataset.voiceId;
+      toast('Birdie voice set · tap SAVE', '#ec4899');
+    }));
+  } catch (e) {
+    $diag.innerHTML = `<span class="miss">network error: ${escapeHtml(e.message)}</span>`;
+  }
+};
+$('key-eleven-diag').addEventListener('click', elevenDiagnose);
+
+$('key-save').addEventListener('click', () => {
+  localStorage.setItem('caddy.anthropic.key',  $('key-anthropic').value.trim());
+  localStorage.setItem('caddy.elevenlabs.key', $('key-xi').value.trim());
+  localStorage.setItem('caddy.owm.key',        $('key-owm').value.trim());
+  const ev = $('key-voice-eagle').value.trim();
+  const bv = $('key-voice-birdie').value.trim();
+  if (ev) localStorage.setItem('caddy.voice.eagle', ev); else localStorage.removeItem('caddy.voice.eagle');
+  if (bv) localStorage.setItem('caddy.voice.birdie', bv); else localStorage.removeItem('caddy.voice.birdie');
+  $('keys-modal').classList.remove('open');
+  refreshKeysButton(); renderKeyStatus();
+  toast('keys saved · testing voices', '#22c55e');
+  speakEagleRaw('Eagle here. Strategic eyes on the course.');
+  setTimeout(() => speakBirdieRaw('Birdie ready. Per shot execution cues.'), 4500);
+});
+refreshKeysButton();
+
+// Mode switcher
+const setMode = (m) => {
+  state.mode = m;
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === m));
+  document.querySelectorAll('.mode').forEach(c => c.classList.toggle('hidden', c.id !== 'mode-' + m));
+  document.querySelector('.scroll').scrollTop = 0;
+  if (m === 'course') initCourse();
+  if (m === 'range')  initRange();
+  if (m === 'green' && state.pos && state.hole?.green) {
+    const d = haversineM(state.pos.lat, state.pos.lon, state.hole.green.lat, state.hole.green.lon);
+    $('p-dist').textContent = Math.round(d);
+  }
+  persist();
+};
+document.querySelectorAll('.mode-btn').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+
+// Stage map
+let stageMap = null;
+const initStageMap = () => {
+  if (stageMap) return;
+  stageMap = L.map('stage-map', {
+    zoomControl: false, attributionControl: false,
+    dragging: false, doubleClickZoom: false, scrollWheelZoom: false, touchZoom: false,
+    keyboard: false, boxZoom: false,
+  }).setView([52.7148, -1.0642], 17);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }).addTo(stageMap);
+  setTimeout(() => stageMap.invalidateSize(), 200);
+};
+const stageFocusHole = (h) => {
+  if (!stageMap) return;
+  const center = h?.green ? [h.green.lat, h.green.lon] : (h?.tee ? [h.tee.lat, h.tee.lon] : null);
+  if (center) { stageMap.setView(center, 17); $('stage-map').classList.add('live'); }
+};
+const stageFocusPos = () => {
+  if (!stageMap || !state.pos) return;
+  stageMap.setView([state.pos.lat, state.pos.lon], 17);
+  $('stage-map').classList.add('live');
+};
+
+// ── Ball flight physics (Penner-style empirical) ────────────────
+// Drag-corrected projectile with wind decomposition + density altitude.
+// References: Penner 2003 (Physics of Golf), Quintavalla 2002 (USGA).
+const flightModel = ({ clubAvgM, windSpeedMs, windDeg, shotBearing, elevDeltaM, tempC, pressureHpa }) => {
+  const stdT = 15, stdP = 1013.25;
+  const T = (tempC != null) ? tempC : stdT;
+  const P = (pressureHpa != null) ? pressureHpa : stdP;
+  // Air density ratio relative to ISA standard. ρ = P / (R*T). Lower ρ = thinner air = more carry.
+  const densityRatio = (P / stdP) * ((273.15 + stdT) / (273.15 + T));
+  const densityFactor = 1 / Math.sqrt(densityRatio);
+  let headTailMph = 0, crossMph = 0;
+  if (windSpeedMs != null && windDeg != null && shotBearing != null) {
+    const windToward = (windDeg + 180) % 360;
+    const rel = ((windToward - shotBearing + 540) % 360) - 180;
+    const wmph = windSpeedMs * 2.237;
+    headTailMph = -wmph * Math.cos(rel * Math.PI / 180); // + tailwind, − headwind
+    crossMph = wmph * Math.sin(rel * Math.PI / 180);     // + right, − left
+  }
+  // Empirical tuning from PGA rule-of-thumb:
+  // Tailwind: ~+1m per mph carry  ·  Headwind: ~+1m per mph required
+  // Elevation: 1m up = ~+1m to play  ·  Cross: ~0.4m drift per mph
+  const windAdjustM = -headTailMph * 1.0;
+  const elevAdjustM = (elevDeltaM != null) ? elevDeltaM : 0;
+  const densityAdjustM = clubAvgM * (densityFactor - 1);
+  const effectiveCarry = clubAvgM + densityAdjustM + (headTailMph * 1.0);
+  const playingDistance = clubAvgM + windAdjustM + elevAdjustM - densityAdjustM;
+  return {
+    effectiveCarry: Math.round(effectiveCarry),
+    playingDistance: Math.round(playingDistance),
+    windAdjustM: Math.round(windAdjustM),
+    elevAdjustM: Math.round(elevAdjustM),
+    densityAdjustM: Math.round(densityAdjustM),
+    crossDriftM: Math.round(crossMph * 0.4),
+    headTailMph: Math.round(headTailMph),
+    crossMph: Math.round(crossMph),
+    densityFactor,
+  };
+};
+const currentConditions = () => {
+  const wind = state.wind, m = (state.owmRaw && state.owmRaw.main) || {};
+  const elevDelta = (state.hole?.green?.elev != null && state.hole?.tee?.elev != null)
+    ? (state.hole.green.elev - state.hole.tee.elev) : 0;
+  return {
+    windSpeedMs: (wind && wind.speedMph != null) ? wind.speedMph / 2.237 : null,
+    windDeg: wind ? wind.deg : null,
+    shotBearing: (state.pos && state.hole?.green) ? bearingDeg(state.pos.lat, state.pos.lon, state.hole.green.lat, state.hole.green.lon) : null,
+    elevDeltaM: elevDelta,
+    tempC: m.temp, pressureHpa: m.pressure,
+  };
+};
+const recommendClub = () => {
+  if (state.distM == null) return null;
+  const cond = currentConditions();
+  // Pick the club whose effective carry covers the playing distance with smallest excess
+  const target = state.distM - 5;
+  const physicsTarget = state.distM
+    + (cond.elevDeltaM || 0)
+    + (cond.windSpeedMs && cond.windDeg != null && cond.shotBearing != null
+        ? -((cond.windSpeedMs * 2.237) * Math.cos((((cond.windDeg + 180) % 360 - cond.shotBearing + 540) % 360 - 180) * Math.PI / 180)) * 1.0
+        : 0);
+  const ranked = state.bag.map(c => ({ c, f: flightModel({ clubAvgM: c.avg, ...cond }) }))
+    .filter(x => x.f.effectiveCarry >= physicsTarget - 5)
+    .sort((a,b) => a.f.effectiveCarry - b.f.effectiveCarry);
+  return (ranked[0]?.c) || state.bag.filter(c => c.avg >= target).sort((a,b) => a.avg - b.avg)[0] || state.bag[0];
+};
+const recommendClubDetail = () => {
+  if (state.distM == null) return null;
+  const club = recommendClub(); if (!club) return null;
+  const cond = currentConditions();
+  const f = flightModel({ clubAvgM: club.avg, ...cond });
+  return { club, f, cond };
+};
+const refreshClubGridStates = () => {
+  const rec = recommendClub(); const sel = state.selectedClubId;
+  document.querySelectorAll('#course-clubs .club-btn').forEach(b => {
+    b.classList.toggle('recommended', !!rec && b.dataset.clubId === rec.id);
+    b.classList.toggle('active', !!sel && b.dataset.clubId === sel);
+  });
+};
+const buildClubGrid = (containerId) => {
+  const $g = $(containerId); if (!$g) return;
+  $g.innerHTML = '';
+  state.bag.forEach(c => {
+    const b = document.createElement('button');
+    b.className = 'club-btn'; b.dataset.clubId = c.id;
+    b.innerHTML = `<span class="club-name">${escapeHtml(c.name)}</span><span class="club-dist">${c.avg}m</span>`;
+    b.addEventListener('click', () => {
+      $g.querySelectorAll('.club-btn').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      if (containerId === 'range-clubs') {
+        state.rangeClubId = c.id;
+        $('r-club').textContent = c.name;
+        const arr = state.rangeShots[c.id] || [];
+        if (arr.length) { $('r-last').textContent = Math.round(arr[arr.length-1]); $('r-avg').textContent = Math.round(arr.reduce((a,b)=>a+b,0) / arr.length); }
+        else { $('r-last').textContent = '—'; $('r-avg').textContent  = '—'; }
+      } else {
+        state.selectedClubId = c.id;
+        speakBirdie(`${c.name}. Steady tempo, solid contact.`, c.name);
+      }
+      persist();
+    });
+    $g.appendChild(b);
+  });
+};
+
+// BAG modal
+const renderBag = () => {
+  const $list = $('bag-list');
+  $list.innerHTML = state.bag.map((c, i) => `
+    <div class="bag-row">
+      <input class="bag-name-input" data-i="${i}" data-field="name" type="text" value="${escapeHtml(c.name)}" maxlength="6">
+      <input class="bag-avg-input" data-i="${i}" data-field="avg" type="number" min="10" max="350" value="${c.avg}">
+      <span class="bag-suffix">m</span>
+      <button class="bag-del" data-i="${i}">✕</button>
+    </div>
+  `).join('');
+  $list.querySelectorAll('input').forEach(inp => inp.addEventListener('change', () => {
+    const i = +inp.dataset.i, field = inp.dataset.field;
+    if (field === 'avg') state.bag[i].avg = Math.max(10, Math.min(350, +inp.value || 0));
+    else state.bag[i].name = (inp.value || '').toUpperCase().slice(0, 6) || ('C' + (i+1));
+    persist(); buildClubGrid('course-clubs'); refreshClubGridStates(); buildClubGrid('range-clubs');
+  }));
+  $list.querySelectorAll('.bag-del').forEach(btn => btn.addEventListener('click', () => {
+    const i = +btn.dataset.i;
+    if (state.bag.length <= 1) { toast('keep at least one club', '#f59e0b'); return; }
+    state.bag.splice(i, 1);
+    persist(); renderBag(); buildClubGrid('course-clubs'); refreshClubGridStates(); buildClubGrid('range-clubs');
+  }));
+};
+$('hdr-bag').addEventListener('click', () => { renderBag(); $('bag-modal').classList.add('open'); });
+$('bag-close-2').addEventListener('click', () => $('bag-modal').classList.remove('open'));
+$('btn-bag-add').addEventListener('click', () => {
+  const id = 'c' + Date.now().toString(36);
+  state.bag.push({ id, name: 'NEW', avg: 100 });
+  persist(); renderBag(); buildClubGrid('course-clubs'); buildClubGrid('range-clubs');
+});
+$('bag-reset').addEventListener('click', () => {
+  if (!confirm('Reset bag to defaults? This wipes any custom edits.')) return;
+  state.bag = BAG_DEFAULT.map(c => ({ ...c }));
+  persist(); renderBag(); buildClubGrid('course-clubs'); refreshClubGridStates(); buildClubGrid('range-clubs');
+});
+
+// Course panel
+const renderCoursePanel = () => {
+  const c = currentCourse();
+  const sel = $('course-select');
+  const ids = Object.keys(state.courses);
+  sel.innerHTML = ids.map(id => `<option value="${escapeHtml(id)}" ${id === state.currentCourseId ? 'selected' : ''}>${escapeHtml(state.courses[id].name)}</option>`).join('');
+  if (!c) { $('course-pinned').textContent = 'no course'; $('course-pinned').className = 'pinned warn'; $('course-meta').textContent = '—'; $('course-pinned-sub').textContent = 'no course selected'; return; }
+  const pinned = c.holes.filter(h => h.tee && h.green).length;
+  $('course-pinned').textContent = `${pinned}/18 pinned`;
+  $('course-pinned').className = 'pinned ' + (pinned === 18 ? 'ok' : 'warn');
+  $('course-pinned-sub').textContent = `${pinned}/18 holes mapped`;
+  const totalPar = c.holes.reduce((a,h) => a + h.par, 0);
+  const totalYds = c.holes.reduce((a,h) => a + h.yds, 0);
+  $('course-meta').textContent = `par ${totalPar} · ${totalYds} yds`;
+};
+$('course-select').addEventListener('change', () => {
+  state.currentCourseId = $('course-select').value;
+  state.hole = null; state.previewHole = null; state.distM = null;
+  $('chip-hole').textContent = '—'; $('chip-hole-sub').textContent = `PAR — · —`;
+  $('chip-dist').textContent = '—'; $('chip-dist-sub').textContent = 'm / yds';
+  persist(); renderCoursePanel(); redrawHoleMarkers();
+  toast('course set: ' + currentCourse().name, '#84cc16');
+});
+$('btn-course-new').addEventListener('click', () => {
+  const name = prompt('New course name:', '');
+  if (!name) return;
+  const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 24) + '-' + Date.now().toString(36);
+  state.courses[id] = blankCourse(id, name.trim());
+  state.currentCourseId = id;
+  persist(); renderCoursePanel(); redrawHoleMarkers();
+  toast('course added · pin holes next', '#84cc16');
+});
+
+// Course PIN modal
+let pinMap = null, pinTeeMarker = null, pinGreenMarker = null, pinHoleN = 1, pinMode = 'tee';
+const initPinMap = () => {
+  if (pinMap) return;
+  pinMap = L.map('pin-map', { zoomControl: true, attributionControl: false }).setView([52.7148, -1.0642], 17);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }).addTo(pinMap);
+  pinMap.on('click', (e) => {
+    const c = currentCourse(); if (!c) return;
+    const hole = c.holes.find(h => h.n === pinHoleN); if (!hole) return;
+    const ll = { lat: e.latlng.lat, lon: e.latlng.lng };
+    if (pinMode === 'tee') hole.tee = ll; else hole.green = ll;
+    persist(); drawPinMarkers(hole); renderPinInfo(); renderCoursePanel();
+  });
+};
+const drawPinMarkers = (hole) => {
+  if (pinTeeMarker)   { pinMap.removeLayer(pinTeeMarker);   pinTeeMarker = null; }
+  if (pinGreenMarker) { pinMap.removeLayer(pinGreenMarker); pinGreenMarker = null; }
+  if (hole.tee) pinTeeMarker = L.circleMarker([hole.tee.lat, hole.tee.lon], { radius:8, color:'#fff', fillColor:'#22c55e', fillOpacity:1, weight:2 }).bindTooltip('TEE', { permanent:true, direction:'top' }).addTo(pinMap);
+  if (hole.green) pinGreenMarker = L.circleMarker([hole.green.lat, hole.green.lon], { radius:10, color:'#fff', fillColor:'#dc2626', fillOpacity:0.9, weight:2 }).bindTooltip('GREEN', { permanent:true, direction:'top' }).addTo(pinMap);
+  if (hole.tee && hole.green) {
+    L.polyline([[hole.tee.lat, hole.tee.lon],[hole.green.lat, hole.green.lon]], { color:'#22c55e', dashArray:'4 4', weight:2 }).addTo(pinMap);
+    pinMap.fitBounds([[hole.tee.lat, hole.tee.lon],[hole.green.lat, hole.green.lon]], { padding: [60, 60] });
+  } else if (hole.tee) pinMap.setView([hole.tee.lat, hole.tee.lon], 17);
+  else if (hole.green) pinMap.setView([hole.green.lat, hole.green.lon], 17);
+};
+const renderPinInfo = () => {
+  const c = currentCourse(); if (!c) return;
+  const hole = c.holes.find(h => h.n === pinHoleN); if (!hole) return;
+  $('pin-title').textContent = `PIN HOLES · ${pinHoleN}/18 · ${c.name}`;
+  $('pin-hole-summary').textContent = `H${hole.n} · ${hole.name} · par ${hole.par} · ${hole.yds} yds (data)`;
+  $('pin-tee-status').textContent = hole.tee ? `${hole.tee.lat.toFixed(5)}, ${hole.tee.lon.toFixed(5)}` : 'not pinned';
+  $('pin-tee-status').className = 'pi-status ' + (hole.tee ? 'ok' : 'miss');
+  $('pin-green-status').textContent = hole.green ? `${hole.green.lat.toFixed(5)}, ${hole.green.lon.toFixed(5)}` : 'not pinned';
+  $('pin-green-status').className = 'pi-status ' + (hole.green ? 'ok' : 'miss');
+  if (hole.tee && hole.green) {
+    const m = haversineM(hole.tee.lat, hole.tee.lon, hole.green.lat, hole.green.lon);
+    $('pin-yards').textContent = `${Math.round(m)}m / ${Math.round(m * 1.094)} yds (measured) · data ${hole.yds} yds`;
+  } else $('pin-yards').textContent = '—';
+};
+const setPinMode = (m) => { pinMode = m; $('pin-mode-tee').classList.toggle('active', m === 'tee'); $('pin-mode-green').classList.toggle('active', m === 'green'); };
+$('pin-mode-tee').addEventListener('click', () => setPinMode('tee'));
+$('pin-mode-green').addEventListener('click', () => setPinMode('green'));
+$('btn-course-pin').addEventListener('click', () => {
+  $('pin-modal').classList.add('open'); initPinMap(); pinHoleN = 1;
+  setTimeout(() => { pinMap.invalidateSize(); const c = currentCourse(); const hole = c?.holes.find(h => h.n === pinHoleN); if (hole) drawPinMarkers(hole); renderPinInfo(); }, 200);
+});
+$('pin-close').addEventListener('click', () => { $('pin-modal').classList.remove('open'); renderCoursePanel(); redrawHoleMarkers(); });
+$('pin-prev').addEventListener('click', () => {
+  pinHoleN = pinHoleN === 1 ? 18 : pinHoleN - 1; setPinMode('tee');
+  const c = currentCourse(); const hole = c?.holes.find(h => h.n === pinHoleN);
+  if (hole) drawPinMarkers(hole); renderPinInfo();
+});
+$('pin-next').addEventListener('click', () => {
+  pinHoleN = pinHoleN === 18 ? 1 : pinHoleN + 1; setPinMode('tee');
+  const c = currentCourse(); const hole = c?.holes.find(h => h.n === pinHoleN);
+  if (hole) drawPinMarkers(hole); renderPinInfo();
+});
+$('pin-done').addEventListener('click', async () => {
+  $('pin-modal').classList.remove('open'); renderCoursePanel(); redrawHoleMarkers();
+  toast('pinning saved · fetching elevations…', '#84cc16');
+  await fetchAllCourseElevations();
+  renderCoursePanel();
+  if (state.hole) renderIntel(state.hole, state.distM != null ? Math.round(state.distM) : null);
+});
+
+// ── Open Topo Data elevation lookup ─────────────────────────
+const fetchElevations = async (points) => {
+  if (points.length === 0) return [];
+  try {
+    const locStr = points.map(p => `${p.lat},${p.lon}`).join('|');
+    const url = `https://api.opentopodata.org/v1/srtm30m?locations=${locStr}`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('elev HTTP ' + r.status);
+    const j = await r.json();
+    return j.results.map(x => x.elevation);
+  } catch (e) { feedAdd('shot', 'elevation fetch failed: ' + e.message); return null; }
+};
+const fetchAllCourseElevations = async () => {
+  const c = currentCourse(); if (!c) return;
+  const points = []; const refs = [];
+  c.holes.forEach(h => {
+    if (h.tee && h.tee.elev == null) { points.push({ lat: h.tee.lat, lon: h.tee.lon }); refs.push({ n: h.n, where: 'tee' }); }
+    if (h.green && h.green.elev == null) { points.push({ lat: h.green.lat, lon: h.green.lon }); refs.push({ n: h.n, where: 'green' }); }
+  });
+  if (points.length === 0) return;
+  // Open Topo Data limits to 100 per request
+  for (let i = 0; i < points.length; i += 100) {
+    const batch = points.slice(i, i + 100);
+    const elevs = await fetchElevations(batch);
+    if (!elevs) continue;
+    elevs.forEach((e, j) => {
+      const ref = refs[i + j];
+      const hole = c.holes.find(h => h.n === ref.n);
+      if (hole && hole[ref.where]) hole[ref.where].elev = e;
+    });
+    if (i + 100 < points.length) await new Promise(r => setTimeout(r, 1100)); // 1 req/sec
+  }
+  persist();
+  feedAdd('shot', `elevation fetched · ${points.length} points`);
+};
+
+// Main map (KAM map panel) · two view modes
+let map = null, playerMarker = null, pinMarker = null;
+let holeMarkers = [], holeLines = [], stageHoleLines = [], stageHoleMarkers = [];
+let playerToPinLine = null, playerToPinLabel = null;
+let mapInitialFocused = false;
+const focusFocalHole = (opts) => {
+  if (!map) return;
+  const c = currentCourse(); if (!c) return;
+  const focalN = state.previewHole || state.hole?.n || 1;
+  const focal = c.holes.find(h => h.n === focalN);
+  if (!focal || !focal.tee || !focal.green) return;
+  const b = [[focal.tee.lat, focal.tee.lon], [focal.green.lat, focal.green.lon]];
+  if (Array.isArray(focal.waypoints)) focal.waypoints.forEach(w => b.push([w.lat, w.lon]));
+  map.fitBounds(b, { padding: opts?.padding || [50, 50], maxZoom: 18, animate: opts?.animate !== false });
+};
+let mapTileLayer = null, mapMode = 'sat';
+const TILE_SAT = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+const TILE_KAM = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+const setMapMode = (mode) => {
+  mapMode = mode;
+  if (!map) return;
+  if (mapTileLayer) { map.removeLayer(mapTileLayer); mapTileLayer = null; }
+  const url = mode === 'sat' ? TILE_SAT : TILE_KAM;
+  const opts = mode === 'sat' ? { maxZoom: 19 } : { maxZoom: 19, subdomains: 'abcd' };
+  mapTileLayer = L.tileLayer(url, opts).addTo(map);
+  const m = $('map');
+  m.classList.toggle('mode-sat', mode === 'sat');
+  m.classList.toggle('mode-kam', mode === 'kam');
+  $('map-mode-sat').classList.toggle('active', mode === 'sat');
+  $('map-mode-kam').classList.toggle('active', mode === 'kam');
+  // Re-render features to apply mode-specific styles
+  redrawHoleMarkers();
+  renderMapKeyStatus();
+};
+$('map-mode-sat').addEventListener('click', () => setMapMode('sat'));
+$('map-mode-kam').addEventListener('click', () => setMapMode('kam'));
+
+const initCourse = () => {
+  initStageMap();
+  if (!map) {
+    map = L.map('map', { zoomControl: false, attributionControl: false }).setView([52.7148, -1.0642], 16);
+    setMapMode('sat');
+    setTimeout(() => map.invalidateSize(), 200);
+    map.on('popupopen', (e) => {
+      const node = e.popup.getElement(); if (!node) return;
+      node.querySelectorAll('[data-preview]').forEach(b => {
+        b.addEventListener('click', () => { previewHole(+b.dataset.preview); e.popup.close(); });
+      });
+    });
+    // KAM custom zoom + fit controls (Command.html pattern)
+    const Z = L.control({ position: 'bottomright' });
+    Z.onAdd = () => {
+      const div = L.DomUtil.create('div', 'kam-zoom');
+      div.innerHTML = `
+        <button class="kam-zoom-btn" data-z="in"  title="zoom in">+</button>
+        <button class="kam-zoom-btn" data-z="out" title="zoom out">−</button>
+        <button class="kam-zoom-btn fit" data-z="fit" title="fit course">⌖</button>
+      `;
+      L.DomEvent.disableClickPropagation(div);
+      L.DomEvent.disableScrollPropagation(div);
+      setTimeout(() => {
+        div.querySelectorAll('button').forEach(b => {
+          b.addEventListener('click', () => {
+            if (b.dataset.z === 'in') map.zoomIn();
+            else if (b.dataset.z === 'out') map.zoomOut();
+            else if (b.dataset.z === 'fit') {
+              const c = currentCourse(); if (!c) return;
+              const bounds = [];
+              c.holes.forEach(h => {
+                if (h.tee)   bounds.push([h.tee.lat, h.tee.lon]);
+                if (h.green) bounds.push([h.green.lat, h.green.lon]);
+              });
+              if (bounds.length) map.fitBounds(bounds, { padding: [40, 40] });
+            }
+          });
+        });
+      }, 50);
+      return div;
+    };
+    Z.addTo(map);
+
+    // KAM tactical legend overlay (in-map, collapsible)
+    const K = L.control({ position: 'bottomleft' });
+    K.onAdd = () => {
+      const div = L.DomUtil.create('div', 'kam-key-overlay collapsed');
+      div.innerHTML = `
+        <div class="kam-key-toggle"><span>◇ KEY</span><span class="kam-key-arrow">▾</span></div>
+        <div class="kam-key-body">
+          <div class="kam-key-row"><span class="ks fw"></span><span>fairway</span></div>
+          <div class="kam-key-row"><span class="ks gn"></span><span>green</span></div>
+          <div class="kam-key-row"><span class="ks tee"></span><span>tee box</span></div>
+          <div class="kam-key-row"><span class="ks cl"></span><span>centerline</span></div>
+          <div class="kam-key-row"><span class="ks sl"></span><span>shot line</span></div>
+          <div class="kam-key-row"><span class="ks way"></span><span>waypoint</span></div>
+          <div class="kam-key-row"><span class="ks you"></span><span>you</span></div>
+          <div class="kam-key-row"><span class="ks pin"></span><span>pin</span></div>
+          <div class="kam-key-row"><span class="ks lbl p3">3</span><span>par 3</span></div>
+          <div class="kam-key-row"><span class="ks lbl">4</span><span>par 4</span></div>
+          <div class="kam-key-row"><span class="ks lbl p5">5</span><span>par 5</span></div>
+          <div class="kam-key-row"><span class="ks lbl cur">7</span><span>current</span></div>
+        </div>
+      `;
+      L.DomEvent.disableClickPropagation(div);
+      L.DomEvent.disableScrollPropagation(div);
+      setTimeout(() => {
+        const toggle = div.querySelector('.kam-key-toggle');
+        const arrow = div.querySelector('.kam-key-arrow');
+        toggle.addEventListener('click', () => {
+          const collapsed = div.classList.toggle('collapsed');
+          arrow.textContent = collapsed ? '▾' : '▴';
+        });
+      }, 50);
+      return div;
+    };
+    K.addTo(map);
+  }
+  redrawHoleMarkers();
+  buildClubGrid('course-clubs');
+  refreshClubGridStates();
+  renderCoursePanel();
+  // First-time focus on a single hole instead of fitting all 18
+  if (!mapInitialFocused) { setTimeout(() => focusFocalHole({ animate: false }), 250); mapInitialFocused = true; }
+};
+
+// Build rich popup HTML for a hole marker
+const buildHolePopupHtml = (h, role) => {
+  let teeGreenStr = '—', bearingStr = '—', elevStr = '—', fromYouStr = '—';
+  if (h.tee && h.green) {
+    const m = haversineM(h.tee.lat, h.tee.lon, h.green.lat, h.green.lon);
+    const b = bearingDeg(h.tee.lat, h.tee.lon, h.green.lat, h.green.lon);
+    teeGreenStr = `${Math.round(m)}m / ${Math.round(m * 1.094)}y`;
+    bearingStr = `${Math.round(b)}° ${compassFromDeg(b)}`;
+  }
+  if (h.tee?.elev != null && h.green?.elev != null) {
+    const delta = h.green.elev - h.tee.elev;
+    elevStr = `${Math.round(h.tee.elev)}m → ${Math.round(h.green.elev)}m (${delta >= 0 ? '+' : ''}${Math.round(delta)}m)`;
+  } else if (h.tee?.elev != null) elevStr = `tee ${Math.round(h.tee.elev)}m`;
+  else if (h.green?.elev != null) elevStr = `green ${Math.round(h.green.elev)}m`;
+  if (state.pos) {
+    const target = role === 'tee' ? h.tee : h.green;
+    if (target) {
+      const d = haversineM(state.pos.lat, state.pos.lon, target.lat, target.lon);
+      fromYouStr = `${Math.round(d)}m / ${Math.round(d * 1.094)}y`;
+    }
+  }
+  const wpCount = Array.isArray(h.waypoints) ? h.waypoints.length : 0;
+  const isCurrent = state.hole && state.hole.n === h.n;
+  return `
+    <div class="hole-popup">
+      <div class="hp-title ${role === 'green' ? 'green-marker' : ''}">H${h.n} · ${escapeHtml(h.name)} · ${role === 'tee' ? 'TEE' : 'GREEN'}${isCurrent ? ' · CURRENT' : ''}</div>
+      <div class="hp-grid">
+        <span>par</span><b>${h.par}</b>
+        <span>yards</span><b>${h.yds}y</b>
+        <span>stroke idx</span><b>${h.si}</b>
+        <span>tee → green</span><b>${teeGreenStr}</b>
+        <span>bearing</span><b>${bearingStr}</b>
+        <span>elevation</span><b>${elevStr}</b>
+        ${state.pos ? `<span>from you</span><b>${fromYouStr}</b>` : ''}
+        ${wpCount > 0 ? `<span>doglegs</span><b>${wpCount} waypoint${wpCount === 1 ? '' : 's'}</b>` : ''}
+      </div>
+      <div class="hp-layout">${escapeHtml(h.layout)}</div>
+      <div class="hp-haz"><b>HAZARDS</b>${escapeHtml(h.hazards)}</div>
+      <div class="hp-line">▸ ${escapeHtml(h.line)}</div>
+      <button class="hp-btn" data-preview="${h.n}">▸ PREVIEW THIS HOLE</button>
+    </div>
+  `;
+};
+// Build polyline path through tee → waypoints → green
+const holePath = (h) => {
+  const path = [];
+  if (h.tee) path.push([h.tee.lat, h.tee.lon]);
+  if (Array.isArray(h.waypoints)) h.waypoints.forEach(w => path.push([w.lat, w.lon]));
+  if (h.green) path.push([h.green.lat, h.green.lon]);
+  return path.length >= 2 ? path : null;
+};
+
+// ── Geo math helpers (lat/lon ↔ meters at given latitude) ────────
+const offsetLatLon = (lat, lon, dLatM, dLonM) => {
+  const dLat = dLatM / 111320;
+  const dLon = dLonM / (111320 * Math.cos(lat * Math.PI / 180));
+  return [lat + dLat, lon + dLon];
+};
+// Buffer a polyline (mitered corridor) — width is half-width in metres on each side
+const bufferPath = (path, widthM) => {
+  if (!path || path.length < 2) return null;
+  const left = [], right = [];
+  for (let i = 0; i < path.length; i++) {
+    const [lat, lon] = path[i];
+    let dLat = 0, dLon = 0;
+    if (i < path.length - 1) { dLat += path[i+1][0] - lat; dLon += path[i+1][1] - lon; }
+    if (i > 0)               { dLat += lat - path[i-1][0]; dLon += lon - path[i-1][1]; }
+    const cosLat = Math.cos(lat * Math.PI / 180);
+    const dLatM = dLat * 111320;
+    const dLonM = dLon * 111320 * cosLat;
+    const len = Math.sqrt(dLatM*dLatM + dLonM*dLonM) || 1;
+    const nLatM = dLatM / len, nLonM = dLonM / len;
+    // Perpendicular vectors (left = rotate +90°, right = -90°) in metres
+    const lLatM = -nLonM, lLonM = nLatM;
+    const rLatM =  nLonM, rLonM = -nLatM;
+    left.push(offsetLatLon(lat, lon, lLatM * widthM, lLonM * widthM));
+    right.push(offsetLatLon(lat, lon, rLatM * widthM, rLonM * widthM));
+  }
+  return [...left, ...right.reverse()];
+};
+const circlePolygon = (lat, lon, radiusM, segments = 28) => {
+  const out = [];
+  for (let i = 0; i < segments; i++) {
+    const a = (i / segments) * 2 * Math.PI;
+    const dy = Math.cos(a) * radiusM;
+    const dx = Math.sin(a) * radiusM;
+    out.push(offsetLatLon(lat, lon, dy, dx));
+  }
+  return out;
+};
+const teeBoxRect = (h) => {
+  if (!h.tee) return null;
+  const next = (h.waypoints && h.waypoints[0]) || h.green;
+  if (!next) return null;
+  const cosLat = Math.cos(h.tee.lat * Math.PI / 180);
+  const dLat = (next.lat - h.tee.lat) * 111320;
+  const dLon = (next.lon - h.tee.lon) * 111320 * cosLat;
+  const len = Math.sqrt(dLat*dLat + dLon*dLon) || 1;
+  const fLatM = dLat / len, fLonM = dLon / len;
+  const pLatM = -fLonM, pLonM = fLatM;
+  const halfL = 5, halfW = 3;
+  return [
+    offsetLatLon(h.tee.lat, h.tee.lon, -fLatM*halfL + pLatM*halfW, -fLonM*halfL + pLonM*halfW),
+    offsetLatLon(h.tee.lat, h.tee.lon,  fLatM*halfL + pLatM*halfW,  fLonM*halfL + pLonM*halfW),
+    offsetLatLon(h.tee.lat, h.tee.lon,  fLatM*halfL - pLatM*halfW,  fLonM*halfL - pLonM*halfW),
+    offsetLatLon(h.tee.lat, h.tee.lon, -fLatM*halfL - pLatM*halfW, -fLonM*halfL - pLonM*halfW),
+  ];
+};
+// Auto-generated course features — academically honest fallback when no surveyed
+// polygons exist. Fairway = buffered centerline. Green = par-sized disc. Tee = box.
+// Replace these later with AI-vision-traced or manually-drawn real polygons.
+const autoFairway = (h) => {
+  const path = holePath(h); if (!path) return null;
+  const widthM = h.par === 3 ? 16 : (h.par === 5 ? 22 : 19);
+  return bufferPath(path, widthM);
+};
+const autoGreen = (h) => {
+  if (!h.green) return null;
+  const radiusM = h.par === 3 ? 12 : (h.par === 5 ? 16 : 14);
+  return circlePolygon(h.green.lat, h.green.lon, radiusM, 32);
+};
+const autoTee = (h) => teeBoxRect(h);
+
+// Per-feature styles · golf-canonical palette + KAM neon discipline.
+// Strong visual hierarchy: current/preview hole is vivid, other holes fade right back.
+const styleFairway = (kam, current) => kam
+  ? { color: '#4ade80', fillColor: '#22c55e', fillOpacity: current ? 0.36 : 0.06, weight: current ? 2.5 : 0.7, opacity: current ? 1 : 0.35 }
+  : { color: '#22c55e', fillColor: '#22c55e', fillOpacity: current ? 0.26 : 0.05, weight: current ? 2 : 0.6, opacity: current ? 0.95 : 0.30 };
+const styleGreen = (kam, current) => kam
+  ? { color: '#bef264', fillColor: '#84cc16', fillOpacity: current ? 0.60 : 0.18, weight: current ? 3 : 1.2, opacity: current ? 1 : 0.55 }
+  : { color: '#84cc16', fillColor: '#84cc16', fillOpacity: current ? 0.60 : 0.18, weight: current ? 2.5 : 1, opacity: current ? 1 : 0.55 };
+const styleTeeBox = (kam) => ({
+  color: '#fef08a', fillColor: '#facc15',
+  fillOpacity: kam ? 0.70 : 0.60, weight: 1.5, opacity: 1
+});
+const styleFairwayStage = (current) => ({ color: '#22c55e', fillColor: '#22c55e', fillOpacity: current ? 0.24 : 0.10, weight: current ? 2 : 1, opacity: current ? 0.85 : 0.4 });
+const styleGreenStage   = (current) => ({ color: '#84cc16', fillColor: '#84cc16', fillOpacity: current ? 0.50 : 0.28, weight: current ? 2 : 1.5, opacity: 1 });
+
+let featureLayers = [], stageFeatureLayers = [];
+const focalHoleN = () => state.previewHole || state.hole?.n || null;
+const renderCourseFeatures = () => {
+  const c = currentCourse();
+  const focal = focalHoleN();
+  if (map) {
+    featureLayers.forEach(l => map.removeLayer(l));
+    featureLayers = [];
+    if (c) {
+      const isKam = mapMode === 'kam';
+      // Fairways first (background), then greens, then tee boxes (only current focal)
+      c.holes.forEach(h => {
+        const cur = focal === h.n;
+        const fw = autoFairway(h);
+        if (fw) featureLayers.push(L.polygon(fw, styleFairway(isKam, cur)).addTo(map));
+      });
+      c.holes.forEach(h => {
+        const cur = focal === h.n;
+        const gp = autoGreen(h);
+        if (gp) featureLayers.push(L.polygon(gp, styleGreen(isKam, cur)).addTo(map));
+      });
+      // Tee box polygon only for the focal hole — keeps non-focal clean
+      c.holes.forEach(h => {
+        if (focal !== h.n) return;
+        const tp = autoTee(h);
+        if (tp) featureLayers.push(L.polygon(tp, styleTeeBox(isKam)).addTo(map));
+      });
+    }
+  }
+  if (stageMap) {
+    stageFeatureLayers.forEach(l => stageMap.removeLayer(l));
+    stageFeatureLayers = [];
+    if (c) {
+      c.holes.forEach(h => {
+        const cur = state.hole && state.hole.n === h.n;
+        const fw = autoFairway(h);
+        if (fw) stageFeatureLayers.push(L.polygon(fw, styleFairwayStage(cur)).addTo(stageMap));
+        const gp = autoGreen(h);
+        if (gp) stageFeatureLayers.push(L.polygon(gp, styleGreenStage(cur)).addTo(stageMap));
+      });
+    }
+  }
+};
+const redrawHoleMarkers = () => {
+  // Render fairway/green/tee polygon layers underneath markers + lines
+  renderCourseFeatures();
+  if (map) {
+    holeMarkers.forEach(m => map.removeLayer(m));
+    holeLines.forEach(l => map.removeLayer(l));
+    holeMarkers = []; holeLines = [];
+    const c = currentCourse(); if (!c) return;
+    const bounds = [];
+    const focal = focalHoleN();
+    c.holes.forEach(h => {
+      const isCurrent = focal === h.n;
+      // Centerline · current = bold yellow solid; others = thin white dashed faded
+      const path = holePath(h);
+      if (path) {
+        const line = L.polyline(path, {
+          color: isCurrent ? '#fbbf24' : '#f1f5f9',
+          weight: isCurrent ? 3.5 : 1.2,
+          opacity: isCurrent ? 1 : 0.30,
+          dashArray: isCurrent ? null : '4 5',
+        }).addTo(map);
+        holeLines.push(line);
+      }
+      // Tee circle marker — only for focal hole (others lean on the green badge)
+      if (h.tee && isCurrent) {
+        const t = L.circleMarker([h.tee.lat, h.tee.lon], { radius: 6, color:'#fff', fillColor:'#facc15', fillOpacity:1, weight:1.5 })
+          .bindPopup(() => buildHolePopupHtml(h, 'tee'), { maxWidth: 260, minWidth: 220 })
+          .bindTooltip(`H${h.n} TEE · par${h.par} · ${h.yds}y`)
+          .addTo(map);
+        holeMarkers.push(t);
+      }
+      // Green dot at every hole · current = bigger yellow, others = small red
+      if (h.green) {
+        const g = L.circleMarker([h.green.lat, h.green.lon], {
+          radius: isCurrent ? 6 : 3,
+          color:'#fff',
+          fillColor: isCurrent ? '#fbbf24' : '#ef4444',
+          fillOpacity: isCurrent ? 1 : 0.7,
+          weight: isCurrent ? 1.5 : 1,
+        })
+          .bindPopup(() => buildHolePopupHtml(h, 'green'), { maxWidth: 260, minWidth: 220 })
+          .bindTooltip(`H${h.n} · par${h.par} · ${h.yds}y`)
+          .addTo(map);
+        holeMarkers.push(g);
+        bounds.push([h.green.lat, h.green.lon]);
+      }
+      if (h.tee) bounds.push([h.tee.lat, h.tee.lon]);
+      // Waypoints · only for the focal hole (clean overview otherwise)
+      if (isCurrent && Array.isArray(h.waypoints)) h.waypoints.forEach(w => {
+        const wm = L.circleMarker([w.lat, w.lon], { radius: 4, color: '#fff', fillColor: '#f59e0b', fillOpacity: 0.95, weight: 1.2 }).addTo(map);
+        holeMarkers.push(wm);
+      });
+      // Green hole-number badge · always (so user can navigate)
+      if (h.green) {
+        const parClass = h.par === 3 ? 'par-3' : (h.par === 5 ? 'par-5' : 'par-4');
+        const greenLabel = L.marker([h.green.lat, h.green.lon], {
+          icon: L.divIcon({
+            className: 'kam-label-host',
+            html: `<div class="kam-label kam-label-green ${isCurrent ? 'current' : ''} ${parClass}">${h.n}</div>`,
+            iconSize: isCurrent ? [30, 30] : [22, 22],
+            iconAnchor: isCurrent ? [15, 15] : [11, 11],
+          }),
+          interactive: true, keyboard: false,
+        })
+          .bindPopup(() => buildHolePopupHtml(h, 'green'), { maxWidth: 260, minWidth: 220 })
+          .addTo(map);
+        holeMarkers.push(greenLabel);
+      }
+      // Tee label badge · only for the focal hole
+      if (h.tee && isCurrent) {
+        const teeLabel = L.marker([h.tee.lat, h.tee.lon], {
+          icon: L.divIcon({
+            className: 'kam-label-host',
+            html: `<div class="kam-label kam-label-tee">${h.n}T</div>`,
+            iconSize: [22, 22], iconAnchor: [11, 11],
+          }),
+          interactive: true, keyboard: false,
+        })
+          .bindPopup(() => buildHolePopupHtml(h, 'tee'), { maxWidth: 260, minWidth: 220 })
+          .addTo(map);
+        holeMarkers.push(teeLabel);
+      }
+    });
+    // (Auto-fit handled separately via focusFocalHole — never refits on every redraw)
+  }
+  if (stageMap) {
+    stageHoleLines.forEach(l => stageMap.removeLayer(l));
+    stageHoleMarkers.forEach(m => stageMap.removeLayer(m));
+    stageHoleLines = []; stageHoleMarkers = [];
+    const c = currentCourse(); if (!c) return;
+    c.holes.forEach(h => {
+      const isCurrent = state.hole && state.hole.n === h.n;
+      const path = holePath(h);
+      if (path) {
+        const line = L.polyline(path, {
+          color: isCurrent ? '#fbbf24' : '#22c55e', weight: isCurrent ? 3 : 1.5,
+          opacity: isCurrent ? 1 : 0.5,
+        }).addTo(stageMap);
+        stageHoleLines.push(line);
+      }
+      if (h.green) {
+        const m = L.circleMarker([h.green.lat, h.green.lon], { radius: 4, color:'#fff', fillColor: isCurrent ? '#fbbf24' : '#dc2626', fillOpacity:0.85, weight:1 }).addTo(stageMap);
+        stageHoleMarkers.push(m);
+      }
+    });
+  }
+};
+
+const startGPSWatch = () => {
+  if (!navigator.geolocation) { toast('no geolocation API', '#ef4444'); return; }
+  navigator.geolocation.watchPosition(updatePos, err => feedAdd('gps', 'GPS error: ' + err.message), { enableHighAccuracy: true, maximumAge: 4000, timeout: 12000 });
+};
+const updatePos = (pos) => {
+  state.pos = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+  if (state.roundLive) {
+    if (!Array.isArray(state.gpsPath)) state.gpsPath = [];
+    state.gpsPath.push({ ts: Date.now(), lat: +state.pos.lat.toFixed(5), lon: +state.pos.lon.toFixed(5), acc: pos.coords.accuracy != null ? +pos.coords.accuracy.toFixed(1) : null });
+    if (state.gpsPath.length > 5000) state.gpsPath = state.gpsPath.slice(-5000);
+  }
+  if (map) {
+    if (!playerMarker) playerMarker = L.circleMarker([state.pos.lat, state.pos.lon], { radius: 9, color:'#fff', fillColor:'#3b82f6', fillOpacity:1, weight:3 }).addTo(map);
+    else playerMarker.setLatLng([state.pos.lat, state.pos.lon]);
+    map.setView([state.pos.lat, state.pos.lon], 17);
+  }
+  const c = currentCourse(); if (!c) return;
+  const pinnedHoles = c.holes.filter(h => h.green);
+  if (pinnedHoles.length === 0) { $('chip-hole-sub').textContent = 'no holes pinned'; return; }
+  let nearest = null, minD = Infinity;
+  pinnedHoles.forEach(h => { const d = haversineM(state.pos.lat, state.pos.lon, h.green.lat, h.green.lon); if (d < minD) { minD = d; nearest = h; } });
+  if (!nearest) return;
+  state.distM = minD;
+  $('chip-dist').textContent     = Math.round(minD) + 'm';
+  $('chip-dist-sub').textContent = Math.round(minD * 1.094) + ' yds';
+  if (map) {
+    if (!pinMarker) pinMarker = L.circleMarker([nearest.green.lat, nearest.green.lon], { radius: 10, color:'#fff', fillColor:'#ef4444', fillOpacity:1, weight:2.5 }).bindPopup(`PIN · H${nearest.n}`).addTo(map);
+    else pinMarker.setLatLng([nearest.green.lat, nearest.green.lon]);
+  }
+  if (state.hole?.n !== nearest.n) {
+    if (state.hole && state.holeStartTs) state.holeTimings.push((Date.now() - state.holeStartTs) / 60000);
+    state.hole = nearest; state.previewHole = null; state.holeStartTs = Date.now();
+    $('chip-hole').textContent     = nearest.n;
+    $('chip-hole-sub').textContent = `PAR ${nearest.par} · ${nearest.name}`;
+    renderIntel(nearest, Math.round(minD));
+    feedAdd('hole', `arrived at H${nearest.n} · ${nearest.name}`);
+    fetchWindThenEagle(); renderAnalysis(); refreshClubGridStates();
+    stageFocusHole(nearest); redrawHoleMarkers();
+  }
+  // Live shot line player → pin
+  updatePlayerToPinLine();
+  renderMapKeyStatus();
+  persist();
+};
+
+const updatePlayerToPinLine = () => {
+  if (!map) return;
+  if (playerToPinLine)  { map.removeLayer(playerToPinLine);  playerToPinLine = null; }
+  if (playerToPinLabel) { map.removeLayer(playerToPinLabel); playerToPinLabel = null; }
+  if (!state.pos || !state.hole?.green) return;
+  const a = [state.pos.lat, state.pos.lon];
+  const b = [state.hole.green.lat, state.hole.green.lon];
+  playerToPinLine = L.polyline([a, b], { color: '#fbbf24', weight: 3, opacity: 0.95, dashArray: '6 4' }).addTo(map);
+  const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+  const m = haversineM(a[0], a[1], b[0], b[1]);
+  playerToPinLabel = L.marker(mid, {
+    icon: L.divIcon({
+      className: 'kam-label-host',
+      html: `<div class="kam-dist-label">${Math.round(m)}m / ${Math.round(m * 1.094)}y</div>`,
+      iconSize: [110, 22], iconAnchor: [55, 11],
+    }),
+    interactive: false, keyboard: false,
+  }).addTo(map);
+};
+
+// MAP STATUS panel · live readout matching exactly what's drawn on the map
+const renderMapKeyStatus = () => {
+  if (!$('mks-course')) return;
+  const c = currentCourse(), h = state.hole;
+  $('mks-course').textContent = c ? c.name : '—';
+  $('mks-mode').textContent = (typeof mapMode === 'string' ? mapMode : 'sat').toUpperCase() === 'SAT' ? 'SAT · GOOGLE EARTH' : 'KAM · TACTICAL';
+  $('mks-mode').className = mapMode === 'kam' ? 'eagle' : 'green';
+  if (c) {
+    const pinned = c.holes.filter(x => x.tee && x.green).length;
+    $('mks-holes').textContent = `${pinned}/18 mapped · par ${c.holes.reduce((a,x)=>a+x.par,0)}`;
+  } else $('mks-holes').textContent = '—';
+  if (h) {
+    $('mks-hole').textContent = `H${h.n} · ${h.name}`;
+    $('mks-par').textContent  = `par ${h.par} · ${h.yds}y`;
+    $('mks-si').textContent   = h.si != null ? `${h.si}` : '—';
+    if (h.tee && h.green) {
+      const teeg = haversineM(h.tee.lat, h.tee.lon, h.green.lat, h.green.lon);
+      const b = bearingDeg(h.tee.lat, h.tee.lon, h.green.lat, h.green.lon);
+      $('mks-bearing').textContent = `${Math.round(b)}° ${compassFromDeg(b)}`;
+      $('mks-teegreen').textContent = `${Math.round(teeg)}m / ${Math.round(teeg * 1.094)}y`;
+    } else { $('mks-bearing').textContent = '—'; $('mks-teegreen').textContent = '—'; }
+    if (h.tee?.elev != null && h.green?.elev != null) {
+      const d = h.green.elev - h.tee.elev;
+      $('mks-elev').textContent = `${d >= 0 ? '+' : ''}${Math.round(d)}m (${Math.round(h.tee.elev)}→${Math.round(h.green.elev)})`;
+    } else $('mks-elev').textContent = '— (pin holes to fetch)';
+    const wp = Array.isArray(h.waypoints) ? h.waypoints.length : 0;
+    $('mks-wp').textContent = wp > 0 ? `${wp} waypoint${wp === 1 ? '' : 's'}` : 'straight';
+  } else {
+    $('mks-hole').textContent = '—'; $('mks-par').textContent = '—'; $('mks-si').textContent = '—';
+    $('mks-bearing').textContent = '—'; $('mks-elev').textContent = '—'; $('mks-teegreen').textContent = '—';
+    $('mks-wp').textContent = '—';
+  }
+  if (state.pos && h?.green) {
+    const d = haversineM(state.pos.lat, state.pos.lon, h.green.lat, h.green.lon);
+    $('mks-dist').textContent = `${Math.round(d)}m / ${Math.round(d * 1.094)}y`;
+  } else $('mks-dist').textContent = state.pos ? 'no hole' : 'no GPS';
+  if (state.wind?.speedMph != null) {
+    const wd = windDescriptor();
+    $('mks-wind').textContent = wd ? (wd.w < 5 ? `${wd.dir}` : `${wd.w}mph ${wd.dir}`) : `${Math.round(state.wind.speedMph)}mph ${compassFromDeg(state.wind.deg)}`;
+  } else $('mks-wind').textContent = '—';
+};
+
+const renderIntel = (h, d) => {
+  $('intel-hole-sub').textContent = `H${h.n} · ${h.name}`;
+  $('intel-hole').textContent    = `${h.n} · ${h.name}`;
+  $('intel-par').textContent     = `Par ${h.par} · ${h.yds} yds`;
+  $('intel-si').textContent      = h.si != null ? h.si : '—';
+  $('intel-layout').textContent  = h.layout;
+  $('intel-hazards').textContent = h.hazards;
+  $('intel-line').textContent    = h.line;
+  if (d == null) { $('intel-club').textContent = `${h.yds} yds total · pin tee + green to enable distance`; $('club-rec').textContent = `▸ tee shot · ${h.line}`; }
+  else {
+    const det = recommendClubDetail();
+    if (det) {
+      const adj = [];
+      if (Math.abs(det.f.windAdjustM) >= 2) adj.push((det.f.windAdjustM > 0 ? '+' : '') + det.f.windAdjustM + 'm wind');
+      if (Math.abs(det.f.elevAdjustM) >= 2) adj.push((det.f.elevAdjustM > 0 ? '+' : '') + det.f.elevAdjustM + 'm elev');
+      if (Math.abs(det.f.densityAdjustM) >= 2) adj.push((det.f.densityAdjustM > 0 ? '+' : '') + det.f.densityAdjustM + 'm air');
+      if (Math.abs(det.f.crossDriftM) >= 2) adj.push((det.f.crossDriftM > 0 ? '+' : '') + det.f.crossDriftM + 'm drift');
+      const adjStr = adj.length ? ' · ' + adj.join(' · ') : '';
+      $('intel-club').textContent = `${det.club.name} · avg ${det.club.avg}m · plays ${det.f.playingDistance}m${adjStr}`;
+      $('club-rec').textContent   = `▸ ${det.club.name} (avg ${det.club.avg}m) · pin ${d}m · plays ${det.f.playingDistance}m${adjStr}`;
+    } else {
+      const pick = state.bag[0];
+      $('intel-club').textContent = `${pick.name} · ${pick.avg}m average · pin ${d}m`;
+      $('club-rec').textContent   = `▸ club call: ${pick.name} (${pick.avg}m avg) · pin ${d}m`;
+    }
+  }
+  $('hole-nav-info').textContent = `previewing H${h.n} of 18`;
+};
+const previewHole = (n) => {
+  const h = holeByN(n); if (!h) return;
+  state.previewHole = h.n;
+  let d = null;
+  if (state.pos && h.green) d = Math.round(haversineM(state.pos.lat, state.pos.lon, h.green.lat, h.green.lon));
+  renderIntel(h, d); feedAdd('hole', `preview · H${h.n} ${h.name}`);
+  if (h.green) stageFocusHole(h);
+  // Re-render features so the preview hole becomes the focal one (full detail)
+  redrawHoleMarkers();
+  focusFocalHole();
+  renderMapKeyStatus();
+};
+$('hole-prev').addEventListener('click', () => { const cur = state.previewHole || state.hole?.n || 1; previewHole(cur === 1 ? 18 : cur - 1); });
+$('hole-next').addEventListener('click', () => { const cur = state.previewHole || state.hole?.n || 0; previewHole(cur === 18 ? 1 : cur + 1); });
+
+// Weather
+const fetchWindThenEagle = async () => {
+  if (!state.pos || !state.hole) return;
+  if (Date.now() - state.lastWindMs < 120000 && state.wind) { deliverEagle(); return; }
+  const owm = localStorage.getItem('caddy.owm.key');
+  if (!owm) { state.wind = { speedMph: null, deg: null }; deliverEagle(); return; }
+  try {
+    const r = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${state.pos.lat}&lon=${state.pos.lon}&appid=${owm}&units=metric`);
+    const j = await r.json();
+    state.owmRaw = j;
+    const ms = j?.wind?.speed || 0, gust = j?.wind?.gust || 0;
+    state.wind = { speedMph: ms * 2.237, deg: j?.wind?.deg || 0, gustMph: gust * 2.237 };
+    state.lastWindMs = Date.now();
+    $('chip-wind').innerHTML       = `${Math.round(state.wind.speedMph)}<span style="font-size:10px;">mph</span>`;
+    $('chip-wind-sub').textContent = compassFromDeg(state.wind.deg);
+    $('wx-sub').textContent  = `${j?.name || 'fix'} · ${fmtTime(Date.now())}`;
+    $('wx-wind').textContent = Math.round(state.wind.speedMph);
+    $('wx-wind-sub').textContent = `mph · ${compassFromDeg(state.wind.deg)} ${state.wind.deg}°`;
+    $('wx-gust').textContent = state.wind.gustMph ? Math.round(state.wind.gustMph) : '—';
+    $('wx-temp').textContent = j?.main?.temp != null ? Math.round(j.main.temp) + '°' : '—';
+    $('wx-feels').textContent = j?.main?.feels_like != null ? `feels ${Math.round(j.main.feels_like)}°` : 'feels —';
+    $('wx-hum').textContent  = j?.main?.humidity ?? '—';
+    $('wx-pres').textContent = j?.main?.pressure ?? '—';
+    $('wx-cloud').textContent = j?.clouds?.all != null ? j.clouds.all + '%' : '—';
+    $('wx-cond').textContent  = j?.weather?.[0]?.description || '—';
+    const wd = windDescriptor();
+    $('wx-call').textContent = wd ? (wd.w < 5 ? `wind ${wd.dir}` : `${wd.w} mph ${wd.dir}`) : '—';
+    feedAdd('wx', `${Math.round(state.wind.speedMph)}mph ${compassFromDeg(state.wind.deg)} · ${j?.weather?.[0]?.description || 'fix'}`);
+    deliverEagle();
+  } catch (e) { feedAdd('wx', 'fetch failed: ' + e.message); state.wind = null; deliverEagle(); }
+};
+const windDescriptor = () => {
+  if (!state.wind?.speedMph || !state.pos || !state.hole?.green) return null;
+  const w = Math.round(state.wind.speedMph);
+  if (w < 5) return { w, dir: 'light, no factor' };
+  const shotBearing = bearingDeg(state.pos.lat, state.pos.lon, state.hole.green.lat, state.hole.green.lon);
+  const blowToward  = (state.wind.deg + 180) % 360;
+  const rel = ((blowToward - shotBearing + 540) % 360) - 180;
+  let dir;
+  if (Math.abs(rel) < 45)       dir = 'tailwind';
+  else if (Math.abs(rel) > 135) dir = 'into your face';
+  else if (rel > 0)             dir = 'crosswind from the right';
+  else                          dir = 'crosswind from the left';
+  return { w, dir };
+};
+const deliverEagle = () => {
+  if (!state.hole) return;
+  const h = state.hole, d = state.distM != null ? Math.round(state.distM) : null;
+  let fb = `Hole ${h.n}, ${h.name}. Par ${h.par}, ${h.yds} off the tee. ${d != null ? 'Pin is ' + d + ' metres. ' : ''}${h.line}.`;
+  const wd = windDescriptor();
+  if (wd) fb += wd.w < 5 ? ` Wind ${wd.dir}.` : ` Wind ${wd.w} miles per hour, ${wd.dir}.`;
+  speakEagle(fb);
+};
+
+// Shot detection (tap-to-arm)
+const ARM_DURATION_MS = 30000;
+const GYRO_THRESHOLD = 25;
+const AUDIO_PEAK_DB = 28;
+const GPS_DELTA_COMMIT_M = 15;
+const GPS_DELTA_DISCARD_M = 5;
+let micStream = null, micAnalyser = null, micRaf = null;
+let armCountdownTimer = null;
+
+const armShot = async () => {
+  state.armed = true; state.armedAt = Date.now();
+  $('btn-arm').classList.add('armed'); $('btn-arm').textContent = '◉ ARMED · 30s';
+  feedAdd('armed', 'shot armed · gyro + audio listening');
+  playChime('arm'); startGyroListening(); startMicListening();
+  if (armCountdownTimer) clearInterval(armCountdownTimer);
+  armCountdownTimer = setInterval(() => {
+    if (!state.armed) return;
+    const left = Math.max(0, Math.ceil((state.armedAt + ARM_DURATION_MS - Date.now()) / 1000));
+    $('btn-arm').textContent = '◉ ARMED · ' + left + 's';
+    if (left === 0) disarmShot('timeout');
+  }, 500);
+};
+const disarmShot = (reason) => {
+  state.armed = false; state.armedAt = null;
+  $('btn-arm').classList.remove('armed'); $('btn-arm').textContent = '▸ I’M GONNA SHOOT';
+  if (armCountdownTimer) { clearInterval(armCountdownTimer); armCountdownTimer = null; }
+  stopGyroListening(); stopMicListening();
+  if (reason && reason !== 'shot') feedAdd('armed', 'disarmed · ' + reason);
+};
+$('btn-arm').addEventListener('click', () => { if (state.armed) disarmShot('manual'); else armShot(); });
+
+let gyroHandler = null;
+const startGyroListening = () => {
+  if (typeof DeviceMotionEvent === 'undefined') return;
+  const tryAttach = () => {
+    if (gyroHandler) return;
+    gyroHandler = (e) => {
+      const a = e.accelerationIncludingGravity || e.acceleration; if (!a) return;
+      const mag = Math.sqrt((a.x||0)**2 + (a.y||0)**2 + (a.z||0)**2);
+      if (mag > GYRO_THRESHOLD && state.armed) onShotTriggered('gyro', mag);
+    };
+    window.addEventListener('devicemotion', gyroHandler);
+  };
+  if (typeof DeviceMotionEvent.requestPermission === 'function') {
+    DeviceMotionEvent.requestPermission().then(p => { if (p === 'granted') tryAttach(); }).catch(()=>tryAttach());
+  } else tryAttach();
+};
+const stopGyroListening = () => { if (gyroHandler) { window.removeEventListener('devicemotion', gyroHandler); gyroHandler = null; } };
+
+const startMicListening = async () => {
+  if (micStream) return;
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false }, video: false });
+    const ctx = ensureAudioCtx();
+    const src = ctx.createMediaStreamSource(micStream);
+    micAnalyser = ctx.createAnalyser(); micAnalyser.fftSize = 1024;
+    src.connect(micAnalyser);
+    const bins = micAnalyser.frequencyBinCount, data = new Uint8Array(bins);
+    const loop = () => {
+      if (!micAnalyser) return;
+      micAnalyser.getByteFrequencyData(data);
+      const sr = ctx.sampleRate;
+      const lo = Math.floor(3000 / (sr/2) * bins), hi = Math.floor(8000 / (sr/2) * bins);
+      let sum = 0, n = 0;
+      for (let i = lo; i < hi; i++) { sum += data[i]; n++; }
+      const avg = n > 0 ? sum / n : 0;
+      if (avg > AUDIO_PEAK_DB && state.armed) onShotTriggered('audio', avg);
+      micRaf = requestAnimationFrame(loop);
+    };
+    loop();
+  } catch (e) {}
+};
+const stopMicListening = () => {
+  if (micRaf) cancelAnimationFrame(micRaf); micRaf = null; micAnalyser = null;
+  if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+};
+
+let lastShotTrigger = 0;
+const onShotTriggered = (source, val) => {
+  const now = Date.now(); if (now - lastShotTrigger < 1500) return; lastShotTrigger = now;
+  const preDist = state.distM, club = clubById(state.selectedClubId);
+  feedAdd('shot', `auto-detected · ${source}${club ? ' · ' + club.name : ''}`);
+  commitShot('auto-' + source);
+  setTimeout(() => {
+    if (preDist == null || state.distM == null) return;
+    const delta = Math.abs(state.distM - preDist);
+    if (delta < GPS_DELTA_DISCARD_M) {
+      if (state.hole && state.shotsByHole[state.hole.n] > 0) {
+        state.shotsByHole[state.hole.n]--;
+        const log = state.shotsLog[state.hole.n]; if (log && log.length) log.pop();
+        feedAdd('shot', `discarded · GPS unchanged (${Math.round(delta)}m) · likely practice`);
+        renderAnalysis(); persist();
+      }
+    } else feedAdd('shot', `committed · GPS delta ${Math.round(delta)}m`);
+  }, 30000);
+  disarmShot('shot');
+};
+const commitShot = (source) => {
+  if (!state.hole) return;
+  state.shotsByHole[state.hole.n] = (state.shotsByHole[state.hole.n] || 0) + 1;
+  if (!state.shotsLog[state.hole.n]) state.shotsLog[state.hole.n] = [];
+  const club = clubById(state.selectedClubId);
+  state.shotsLog[state.hole.n].push({
+    n: state.shotsByHole[state.hole.n], club: club?.name || null,
+    distM: state.distM != null ? Math.round(state.distM) : null,
+    ts: Date.now(), source, pos: state.pos ? { lat: +state.pos.lat.toFixed(5), lon: +state.pos.lon.toFixed(5) } : null,
+  });
+  speakBirdie(`Shot logged. ${state.shotsByHole[state.hole.n]} on hole ${state.hole.n}.`);
+  renderAnalysis(); persist();
+};
+$('btn-shot').addEventListener('click', () => { if (!state.hole) { toast('no hole detected', '#f59e0b'); return; } commitShot('manual'); });
+
+$('btn-end-hole').addEventListener('click', () => {
+  if (!state.hole) return;
+  const shots = state.shotsByHole[state.hole.n] || 0;
+  const diff = shots - state.hole.par;
+  const clubsUsed = (state.shotsLog[state.hole.n] || []).map(s => s.club).filter(Boolean).join('·');
+  const endedHole = state.hole;
+  const shotLog = (state.shotsLog[endedHole.n] || []).slice();
+  state.holeEnds.push({ n: endedHole.n, par: endedHole.par, shots, diff, ts: Date.now(), clubs: clubsUsed });
+  if (state.holeStartTs) { state.holeTimings.push((Date.now() - state.holeStartTs) / 60000); state.holeStartTs = Date.now(); }
+  const diffTxt = diff === 0 ? 'level par' : (diff < 0 ? Math.abs(diff)+' under' : '+'+diff+' over');
+  feedAdd('hole', `H${endedHole.n} ended · ${shots} shots · ${diffTxt}`);
+  triggerAchievement(diff, endedHole, shots);
+  renderScorecard(); renderAnalysis(); persist();
+  postHoleAISummary(endedHole, shots, diff, shotLog);
+});
+
+const postHoleAISummary = async (hole, shots, diff, shotLog) => {
+  const key = localStorage.getItem('caddy.anthropic.key'); if (!key) return;
+  try {
+    const ctx = buildContext();
+    const log = (shotLog || []).map(s => `${s.n}. ${s.club || '—'} from ${s.distM != null ? s.distM + 'm' : 'unknown'} (${s.source || 'manual'})`).join('\n');
+    const prompt = `Boss just finished hole ${hole.n} (${hole.name}) in ${shots} shots (${diff > 0 ? '+' : ''}${diff} vs par).\n\nShot log:\n${log || '(no shots logged)'}\n\nLive context:\n${ctx}\n\nWrite a 2-sentence post-hole read in EAGLE's voice. What worked / what to fix going forward. No preface.`;
+    const txt = await askClaude(EAGLE_SYSTEM, prompt, 200);
+    if (txt) {
+      const tag = `[POST-HOLE H${hole.n}] `;
+      feedAdd('eagle', tag + txt);
+      // Attach to scorecard row
+      const idx = state.holeEnds.findIndex(e => e.n === hole.n);
+      if (idx >= 0) { state.holeEnds[idx].aiNote = txt; persist(); }
+    }
+  } catch (e) {}
+};
+const triggerAchievement = (diff, h, shots) => {
+  if (diff <= -2) { playChime('eagle'); flashAchievement(); speakEagle(`EAGLE on ${h.name}! ${shots} shots on a par ${h.par}. Best of the round.`); }
+  else if (diff === -1) { playChime('birdie'); flashAchievement(); speakEagle(`Birdie on ${h.n}. ${shots} shots, par ${h.par}. That's how you do it.`); }
+  else if (diff === 0) { playChime('par'); speakEagle(`Par on ${h.n}. Level. On to the next.`); }
+  else speakEagle(`Hole ${h.n} done. ${shots} shots, +${diff}. Reset.`);
+};
+const flashAchievement = () => { const f = $('achievement-flash'); f.classList.remove('fire'); void f.offsetWidth; f.classList.add('fire'); };
+
+const renderScorecard = () => {
+  const $r = $('score-rows'); $r.innerHTML = '';
+  const ends = state.holeEnds;
+  if (ends.length === 0) { $r.innerHTML = '<div class="score-empty">no holes ended yet</div>'; return; }
+  let totalShots = 0, totalPar = 0;
+  ends.forEach(e => {
+    totalShots += e.shots; totalPar += e.par;
+    const cls = e.diff < 0 ? 'under' : (e.diff > 0 ? 'over' : '');
+    const row = document.createElement('div');
+    row.className = 'score-row';
+    row.innerHTML = `<span>H${e.n}</span><span>${e.par}</span><span>${e.shots}</span><span class="score-clubs">${escapeHtml(e.clubs || '—')}</span><span class="score-diff ${cls}">${e.diff > 0 ? '+'+e.diff : e.diff}</span>`;
+    $r.appendChild(row);
+  });
+  const td = totalShots - totalPar;
+  const t = document.createElement('div');
+  t.className = 'score-row total';
+  t.innerHTML = `<span>TOT</span><span>${totalPar}</span><span>${totalShots}</span><span></span><span>${td > 0 ? '+'+td : td}</span>`;
+  $r.appendChild(t);
+  $('score-sub').textContent = `${ends.length} hole${ends.length===1?'':'s'} ended`;
+};
+const renderAnalysis = () => {
+  const ends = state.holeEnds;
+  const inProgressShots = state.hole && state.shotsByHole[state.hole.n] && !ends.find(e => e.n === state.hole.n) ? state.shotsByHole[state.hole.n] : 0;
+  const totalShots = ends.reduce((a,e) => a + e.shots, 0) + inProgressShots;
+  const totalPar = ends.reduce((a,e) => a + e.par, 0);
+  const dp = ends.length ? totalShots - totalPar : 0;
+  $('ana-shots').textContent  = totalShots;
+  $('ana-vs-par').textContent = ends.length ? `vs par ${dp > 0 ? '+'+dp : dp}` : 'vs par —';
+  $('ana-done').textContent   = ends.length;
+  if (state.holeTimings.length) { const avg = state.holeTimings.reduce((a,b) => a+b, 0) / state.holeTimings.length; $('ana-pace').textContent = `pace ${avg.toFixed(1)} min/hole`; }
+  else $('ana-pace').textContent = 'pace —';
+  if (ends.length) { const last = ends[ends.length - 1]; const lt = last.diff === 0 ? 'level' : (last.diff < 0 ? Math.abs(last.diff)+' under' : '+'+last.diff); $('ana-last').textContent = `H${last.n}`; $('ana-last-sub').textContent = `${last.shots} shots · ${lt}`; }
+  else { $('ana-last').textContent = '—'; $('ana-last-sub').textContent = '—'; }
+  if (ends.length >= 1) { const last3 = ends.slice(-3); const diffs = last3.reduce((a,e) => a + e.diff, 0); $('ana-trend').textContent = (diffs > 0 ? '+' : '') + diffs; $('ana-trend-sub').textContent = `last ${last3.length} hole${last3.length === 1 ? '' : 's'} · vs par`; }
+  else { $('ana-trend').textContent = '—'; $('ana-trend-sub').textContent = 'no data'; }
+};
+
+// Theory
+const renderTheory = () => { $('theory-card').textContent = THEORY[state.theoryIdx]; $('theory-dots').innerHTML = THEORY.map((_, i) => `<span class="theory-dot${i === state.theoryIdx ? ' active' : ''}"></span>`).join(''); };
+const cycleTheory = (delta) => { state.theoryIdx = (state.theoryIdx + delta + THEORY.length) % THEORY.length; renderTheory(); persist(); };
+$('theory-next').addEventListener('click', () => cycleTheory(1));
+$('theory-prev').addEventListener('click', () => cycleTheory(-1));
+$('theory-card').addEventListener('click', () => cycleTheory(1));
+renderTheory();
+setInterval(() => { if (document.visibilityState === 'visible') cycleTheory(1); }, 28000);
+
+// START
+$('btn-start').addEventListener('click', () => {
+  const btn = $('btn-start');
+  btn.textContent = '◐ STARTING ROUND…'; btn.style.background = 'linear-gradient(180deg,#f59e0b,#d97706)';
+  if (!localStorage.getItem('caddy.elevenlabs.key')) toast('tap ⚙ KEYS first to enable Eagle/Birdie', '#f59e0b');
+  if (!navigator.geolocation) { btn.textContent = '✗ NO GPS API'; btn.style.background = '#7f1d1d'; toast('no geolocation API', '#ef4444'); return; }
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      state.roundLive = true; state.roundStartTs = Date.now();
+      requestWakeLock(); updatePos(pos);
+      btn.textContent  = '● ROUND LIVE · GPS LOCKED'; btn.style.background = 'linear-gradient(180deg,#16a34a,#15803d)'; btn.disabled = true;
+      $('hdr-live').classList.add('live'); $('hdr-live').textContent = '● LIVE';
+      feedAdd('gps', `round live · GPS locked at ${state.pos.lat.toFixed(4)}, ${state.pos.lon.toFixed(4)}`);
+      startGPSWatch(); stageFocusPos();
+      speakEagle('Round live. GPS locked. Walk to your tee. Eagle has the wind, Birdie is on the bag.');
+      persist();
+    },
+    err => { btn.textContent = '✗ GPS DENIED'; btn.style.background = '#7f1d1d'; feedAdd('gps', 'denied: ' + err.message); toast('GPS denied: ' + err.message, '#ef4444'); },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+  );
+});
+if (state.roundLive) {
+  const btn = $('btn-start');
+  btn.textContent = '● ROUND LIVE · RESUMED'; btn.style.background = 'linear-gradient(180deg,#16a34a,#15803d)'; btn.disabled = true;
+  $('hdr-live').classList.add('live'); $('hdr-live').textContent = '● LIVE';
+  startGPSWatch(); requestWakeLock();
+}
+
+// Range / Garden / Putting
+const initRange = () => {
+  buildClubGrid('range-clubs');
+  if (state.rangeClubId) {
+    const c = clubById(state.rangeClubId);
+    if (c) {
+      $('r-club').textContent = c.name;
+      const arr = state.rangeShots[c.id] || [];
+      if (arr.length) { $('r-last').textContent = Math.round(arr[arr.length-1]); $('r-avg').textContent = Math.round(arr.reduce((a,b)=>a+b,0) / arr.length); }
+    }
+  }
+};
+$('btn-range-log').addEventListener('click', () => {
+  if (!state.rangeClubId) { toast('pick a club first', '#f59e0b'); return; }
+  const club = clubById(state.rangeClubId);
+  const m = parseFloat(prompt(`Carry distance for ${club.name} (m):`, ''));
+  if (isNaN(m) || m <= 0) return;
+  if (!state.rangeShots[club.id]) state.rangeShots[club.id] = [];
+  state.rangeShots[club.id].push(m);
+  $('r-last').textContent = Math.round(m);
+  const arr = state.rangeShots[club.id];
+  const avg = arr.reduce((a,b) => a+b, 0) / arr.length;
+  $('r-avg').textContent = Math.round(avg);
+  const idx = state.bag.findIndex(c => c.id === club.id);
+  if (idx >= 0) { state.bag[idx].avg = Math.round(avg); buildClubGrid('course-clubs'); }
+  speakBirdieRaw(`${club.name}, ${Math.round(m)} metres. ${arr.length === 1 ? 'First of the session.' : `Running average ${Math.round(avg)} over ${arr.length}.`}`);
+  if (arr.length >= 5 && arr.length % 5 === 0) {
+    const trend = arr[arr.length-1] - arr[0];
+    speakEagleRaw(`${club.name} session: ${arr.length} shots, average ${Math.round(avg)}, ${trend > 0 ? 'trending up '+Math.round(trend) : trend < 0 ? 'trending down '+Math.abs(Math.round(trend)) : 'steady'}.`);
+  }
+  persist();
+});
+$('btn-range-end').addEventListener('click', () => {
+  const summary = Object.keys(state.rangeShots).map(id => { const c = clubById(id); const arr = state.rangeShots[id]; const avg = arr.reduce((a,b) => a+b, 0) / arr.length; return `${c.name} ${Math.round(avg)} (${arr.length})`; }).join(', ') || 'no shots';
+  speakEagleRaw(`Session complete. ${summary}.`);
+});
+const updateGarden = () => {
+  const total = state.garden.make + state.garden.miss;
+  $('g-chips').textContent = total; $('g-makes').textContent = state.garden.make;
+  $('g-pct').textContent = total > 0 ? Math.round(state.garden.make/total*100) + '%' : '—';
+  if (total > 0 && total % 10 === 0) { const pct = Math.round(state.garden.make/total*100); speakEagleRaw(`Ten chips. ${state.garden.make} made, ${state.garden.miss} missed. ${pct} percent landing rate.`); }
+  persist();
+};
+$('btn-chip-make').addEventListener('click', () => { state.garden.make++; updateGarden(); speakBirdieRaw('Made it. Trust that swing.'); });
+$('btn-chip-miss').addEventListener('click', () => { state.garden.miss++; updateGarden(); speakBirdieRaw('Miss. Reset, breathe, again.'); });
+
+// ── Garden vision · camera + AI scan + AI-scored chips ──────────
+let gardenStream = null;
+let chipArmed = false;
+const startGardenCamera = async () => {
+  if (gardenStream) return;
+  try {
+    gardenStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false,
+    });
+    const video = $('garden-video');
+    video.srcObject = gardenStream;
+    $('garden-viewport').classList.add('live');
+    $('garden-status').textContent = 'camera live · scan or chip';
+    feedAdd('shot', 'garden camera live');
+    toast('camera live · prop the phone where it sees your chip line', '#22c55e');
+  } catch (e) {
+    toast('camera: ' + e.message, '#ef4444');
+  }
+};
+const stopGardenCamera = () => {
+  if (!gardenStream) return;
+  gardenStream.getTracks().forEach(t => t.stop());
+  gardenStream = null;
+  $('garden-video').srcObject = null;
+  $('garden-viewport').classList.remove('live', 'scanning');
+  $('garden-status').textContent = 'camera off · tap CONNECT';
+};
+$('btn-garden-cam').addEventListener('click', startGardenCamera);
+$('btn-garden-stop').addEventListener('click', stopGardenCamera);
+
+const scanGarden = async () => {
+  if (!gardenStream) { toast('start camera first', '#f59e0b'); startGardenCamera(); return; }
+  if (!localStorage.getItem('caddy.anthropic.key')) { toast('add Anthropic key in ⚙ KEYS', '#f59e0b'); return; }
+  $('garden-status').textContent = 'scanning · pan slowly across targets';
+  $('garden-viewport').classList.add('scanning');
+  toast('pan phone slowly · 5 frames over ~4s', '#22c55e');
+  avThink('eagle', true);
+  const video = $('garden-video');
+  const frames = [];
+  for (let i = 0; i < 5; i++) {
+    const f = captureFrame(video);
+    if (f) frames.push(f);
+    await new Promise(r => setTimeout(r, 800));
+  }
+  $('garden-viewport').classList.remove('scanning');
+  if (frames.length === 0) { avThink('eagle', false); toast('no frames captured', '#ef4444'); return; }
+  try {
+    const system = `You are EAGLE the strategic golf caddy analysing Boss's chip practice garden. Look at these frames from a slow pan across the garden. Identify all visible targets that Boss might chip into (baskets, bins, buckets, hoops, pots, cones, anything circular or container-shaped). For each: type, approximate distance from camera in metres (estimate by apparent size), relative position (left / centre / right · near / mid / far). Maximum 5 targets. Then 1-sentence layout read for chip practice strategy. Geordie tone, brief, no preface.`;
+    const text = `${frames.length} frames from a slow pan across Boss's garden. Identify chip practice targets, distances, positions. End with one-line layout read.`;
+    const result = await askClaudeVision(system, text, frames, 500);
+    avThink('eagle', false);
+    state.garden.layout = result; persist();
+    $('garden-targets').textContent = result;
+    $('garden-targets').classList.remove('empty');
+    $('garden-status').textContent = 'garden scanned · ready to chip';
+    feedAdd('eagle', '[GARDEN SCAN] ' + result);
+    const summary = result.split('\n').filter(Boolean).slice(0, 3).join(' · ').slice(0, 280);
+    speakEagleRaw(summary);
+  } catch (e) {
+    avThink('eagle', false);
+    $('garden-viewport').classList.remove('scanning');
+    toast('scan failed: ' + e.message, '#ef4444');
+    feedAdd('eagle', '[scan err] ' + e.message);
+  }
+};
+$('btn-garden-scan').addEventListener('click', scanGarden);
+
+const armChipAI = async () => {
+  if (!gardenStream) { toast('start camera first', '#f59e0b'); startGardenCamera(); return; }
+  if (chipArmed) return;
+  if (!localStorage.getItem('caddy.anthropic.key')) {
+    toast('add Anthropic key for AI scoring · manual buttons still work', '#f59e0b');
+    return;
+  }
+  chipArmed = true;
+  $('btn-garden-chip').textContent = '◉ ARMED · CHIP NOW';
+  $('btn-garden-chip').classList.add('armed');
+  feedAdd('shot', 'chip armed · 10s vision capture');
+  playChime('arm');
+  const video = $('garden-video');
+  const frames = [];
+  // 6 frames over ~8 seconds — enough to capture flight + landing
+  for (let i = 0; i < 6; i++) {
+    const f = captureFrame(video);
+    if (f) frames.push(f);
+    await new Promise(r => setTimeout(r, 1300));
+  }
+  $('btn-garden-chip').textContent = '◐ ANALYSING…';
+  avThink('birdie', true);
+  try {
+    const system = `You are BIRDIE the per-shot execution caddy analysing Boss's just-completed chip shot. Frames are sequential during/after the chip. Decide: did the ball land near a target (MAKE), close to a target within ~2m (CLOSE), or miss (MISS)? Then give one execution coaching cue (max 2 sentences). Begin response with exactly [MAKE], [CLOSE], or [MISS] on its own first line. Geordie female, sharp, no preface.`;
+    const layoutCtx = state.garden.layout || 'No prior scan available.';
+    const text = `Garden targets from prior scan:\n${layoutCtx}\n\nBoss just chipped. ${frames.length} sequential frames over ~8s. Score and coach.`;
+    const result = await askClaudeVision(system, text, frames, 250);
+    avThink('birdie', false);
+    chipArmed = false;
+    $('btn-garden-chip').textContent = '▸ CHIP TAKEN · AUTO-SCORE (10s)';
+    $('btn-garden-chip').classList.remove('armed');
+    const m = result && result.match(/^\s*\[(MAKE|CLOSE|MISS)\]\s*([\s\S]+)$/i);
+    if (m) {
+      const verdict = m[1].toUpperCase();
+      const cue = m[2].trim();
+      if (verdict === 'MAKE') { state.garden.make++; playChime('birdie'); }
+      else state.garden.miss++;
+      updateGarden();
+      speakBirdieRaw(cue);
+      feedAdd('birdie', `[${verdict}] ${cue}`);
+    } else {
+      speakBirdieRaw(result || 'Try that again, the line broke up.');
+      feedAdd('birdie', '[unparsed] ' + (result || ''));
+    }
+  } catch (e) {
+    avThink('birdie', false);
+    chipArmed = false;
+    $('btn-garden-chip').textContent = '▸ CHIP TAKEN · AUTO-SCORE (10s)';
+    $('btn-garden-chip').classList.remove('armed');
+    toast('scoring failed: ' + e.message, '#ef4444');
+    feedAdd('birdie', '[chip err] ' + e.message);
+  }
+};
+$('btn-garden-chip').addEventListener('click', armChipAI);
+$('btn-putt-make').addEventListener('click', () => { state.greenPutts++; $('p-putts').textContent = state.greenPutts; speakBirdieRaw('In. Pure roll.'); persist(); });
+$('btn-putt-miss').addEventListener('click', () => { state.greenPutts++; $('p-putts').textContent = state.greenPutts; speakBirdieRaw('Read the line, not just the speed.'); persist(); });
+
+// Glasses + REC + LIVE chip
+$('btn-test-audio').addEventListener('click', () => { speakEagleRaw('Audio routing test. If you hear this through your Ray-Ban speakers, the glasses are paired and routing works.'); $('glasses-status').textContent = '◐ AUDIO TESTED'; });
+$('btn-bt-help').addEventListener('click', () => { alert('Pair Meta Ray-Bans:\n\n1. iOS Settings → Bluetooth\n2. Glasses charged + on (Meta View app open if first time)\n3. Tap "Ray-Ban Meta" when listed\n4. Confirm pairing\n5. Return → tap TEST AUDIO\n\nIf audio plays through phone speaker instead:\n· Pull down Control Centre while audio plays → tap the AirPlay/audio icon → pick the glasses\n· Or toggle BT off/on once paired'); });
+
+// ── Glasses mic test · level meter ────────────────────────────
+let micTestStream = null, micTestAnalyser = null, micTestRaf = null;
+let micTestPeak = 0, micTestPeakDecay = 0;
+const startMicTest = async () => {
+  if (micTestStream) return;
+  try {
+    micTestStream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+      video: false,
+    });
+    const ctx = ensureAudioCtx();
+    const src = ctx.createMediaStreamSource(micTestStream);
+    micTestAnalyser = ctx.createAnalyser();
+    micTestAnalyser.fftSize = 512; micTestAnalyser.smoothingTimeConstant = 0.7;
+    src.connect(micTestAnalyser);
+    const data = new Uint8Array(micTestAnalyser.frequencyBinCount);
+    const $fill = $('mic-meter-fill'), $peak = $('mic-meter-peak');
+    micTestPeak = 0;
+    const loop = () => {
+      if (!micTestAnalyser) return;
+      micTestAnalyser.getByteFrequencyData(data);
+      let sum = 0; for (let i = 0; i < data.length; i++) sum += data[i];
+      const avg = sum / data.length;
+      const pct = Math.min(100, Math.round(avg * 100 / 90));
+      $fill.style.width = pct + '%';
+      if (pct > micTestPeak) { micTestPeak = pct; micTestPeakDecay = Date.now(); }
+      else if (Date.now() - micTestPeakDecay > 600) { micTestPeak = Math.max(pct, micTestPeak - 0.6); }
+      $peak.style.left = micTestPeak + '%';
+      micTestRaf = requestAnimationFrame(loop);
+    };
+    loop();
+    $('btn-mic-test').textContent = '◉ STOP MIC TEST';
+    $('btn-mic-test').classList.add('armed');
+    feedAdd('shot', 'mic test live · speak to confirm glasses mic is active');
+  } catch (e) {
+    toast('mic: ' + e.message, '#ef4444');
+  }
+};
+const stopMicTest = () => {
+  if (micTestRaf) cancelAnimationFrame(micTestRaf); micTestRaf = null;
+  micTestAnalyser = null;
+  if (micTestStream) micTestStream.getTracks().forEach(t => t.stop()); micTestStream = null;
+  $('mic-meter-fill').style.width = '0%';
+  $('mic-meter-peak').style.left = '0%';
+  $('btn-mic-test').textContent = '🎤 START MIC TEST';
+  $('btn-mic-test').classList.remove('armed');
+};
+$('btn-mic-test').addEventListener('click', () => { if (micTestStream) stopMicTest(); else startMicTest(); });
+const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+$('hdr-rec').addEventListener('click', async () => {
+  if (state.recording) { state.recording.stop(); state.recording = null; $('hdr-rec').textContent = '⦿ REC'; $('stage').classList.remove('recording'); return; }
+  if (isMobile) { alert('iOS clip capture:\n\n1. Pull down Control Centre\n2. Tap Screen Record (⦿)\n3. Wait 3-2-1, app captures everything visible\n4. Tap red bar to stop · save to Photos'); return; }
+  try {
+    const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+    const chunks = []; const rec = new MediaRecorder(stream);
+    rec.ondataavailable = e => chunks.push(e.data);
+    rec.onstop = () => { const blob = new Blob(chunks, { type: 'video/webm' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `kam-caddy-${Date.now()}.webm`; a.click(); stream.getTracks().forEach(t => t.stop()); };
+    rec.start(); state.recording = rec; $('hdr-rec').textContent = '⦿ STOP'; $('stage').classList.add('recording'); toast('recording…', '#ef4444');
+  } catch (e) { toast('record: ' + e.message, '#ef4444'); }
+});
+$('hdr-live').addEventListener('click', () => { setMode('course'); document.querySelector('.scroll').scrollTop = 0; });
+
+// ── Voice IN · Web Speech API ────────────────────────────────
+let recognition = null;
+const startVoiceInput = () => {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { toast('voice input not supported on this browser', '#f59e0b'); return; }
+  if (recognition) { try { recognition.stop(); } catch (_) {} return; }
+  recognition = new SR();
+  recognition.lang = 'en-GB';
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+  recognition.continuous = false;
+  $('btn-talk').classList.add('listening');
+  $('btn-talk').textContent = '◉ LISTENING…';
+  feedAdd('you', '… listening');
+  recognition.onresult = (e) => {
+    const text = (e.results[0][0].transcript || '').trim();
+    if (text) askCaddy(text);
+  };
+  recognition.onend = () => {
+    $('btn-talk').classList.remove('listening');
+    $('btn-talk').textContent = '◉ ASK';
+    recognition = null;
+  };
+  recognition.onerror = (e) => {
+    toast('voice: ' + (e.error || 'error'), '#ef4444');
+    feedAdd('you', '[voice error: ' + (e.error || 'unknown') + ']');
+    $('btn-talk').classList.remove('listening');
+    $('btn-talk').textContent = '◉ ASK';
+    recognition = null;
+  };
+  try { recognition.start(); } catch (e) { toast('voice start: ' + e.message, '#ef4444'); $('btn-talk').classList.remove('listening'); $('btn-talk').textContent = '◉ ASK'; recognition = null; }
+};
+$('btn-talk').addEventListener('click', startVoiceInput);
+
+// Compass
+if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+  document.body.addEventListener('click', () => {
+    DeviceOrientationEvent.requestPermission().then(p => { if (p === 'granted') window.addEventListener('deviceorientation', e => { state.bearing = e.webkitCompassHeading ?? (e.alpha != null ? 360 - e.alpha : null); }); }).catch(() => {});
+  }, { once: true });
+} else if (typeof DeviceOrientationEvent !== 'undefined') {
+  window.addEventListener('deviceorientation', e => { state.bearing = e.webkitCompassHeading ?? (e.alpha != null ? 360 - e.alpha : null); });
+}
+
+// Export
+const exportRound = () => {
+  const date = new Date(state.roundStartTs || Date.now());
+  const ymd = date.toISOString().slice(0, 10);
+  const hhmm = String(date.getHours()).padStart(2,'0') + ':' + String(date.getMinutes()).padStart(2,'0');
+  const ends = state.holeEnds;
+  const totalShots = ends.reduce((a,e) => a + e.shots, 0);
+  const totalPar = ends.reduce((a,e) => a + e.par, 0);
+  const c = currentCourse();
+  const lines = [];
+  lines.push(`# Round · ${c?.name || 'unknown'} · ${ymd} ${hhmm}`);
+  lines.push('');
+  lines.push(`Holes played: ${ends.length}/18 · Shots: ${totalShots} · vs par: ${totalShots - totalPar > 0 ? '+' : ''}${totalShots - totalPar}`);
+  if (state.holeTimings.length) { const avg = state.holeTimings.reduce((a,b)=>a+b,0) / state.holeTimings.length; lines.push(`Pace: ${avg.toFixed(1)} min/hole`); }
+  lines.push('');
+  lines.push('| Hole | Par | Shots | Clubs | +/- |');
+  lines.push('|---|---|---|---|---|');
+  ends.forEach(e => lines.push(`| H${e.n} | ${e.par} | ${e.shots} | ${e.clubs || '—'} | ${e.diff > 0 ? '+' : ''}${e.diff} |`));
+  lines.push(`| **TOT** | **${totalPar}** | **${totalShots}** |  | **${totalShots - totalPar > 0 ? '+' : ''}${totalShots - totalPar}** |`);
+  lines.push('');
+  lines.push('## Shot log');
+  Object.keys(state.shotsLog).sort((a,b) => +a - +b).forEach(n => {
+    lines.push(''); lines.push(`### H${n}`);
+    state.shotsLog[n].forEach(s => lines.push(`- shot ${s.n} · ${s.club || '—'} · ${s.distM != null ? s.distM + 'm to pin' : ''} · ${fmtTime(s.ts)}${s.source ? ' · ' + s.source : ''}`));
+  });
+  lines.push(''); lines.push('## Live feed');
+  state.feed.slice().reverse().forEach(e => lines.push(`- \`${fmtTime(e.ts)}\` · **${e.tag.toUpperCase()}** · ${e.text}`));
+  return lines.join('\n');
+};
+const postRoundCoach = async () => {
+  const key = localStorage.getItem('caddy.anthropic.key'); if (!key) return null;
+  const ends = state.holeEnds; if (ends.length === 0) return null;
+  try {
+    const totalShots = ends.reduce((a,e) => a + e.shots, 0);
+    const totalPar = ends.reduce((a,e) => a + e.par, 0);
+    const tableLines = ends.map(e => `H${e.n} par ${e.par} → ${e.shots} (${e.diff > 0 ? '+' : ''}${e.diff})${e.clubs ? ' · ' + e.clubs : ''}`).join('\n');
+    const c = currentCourse();
+    const prompt = `Round complete at ${c?.name || 'course'}.\nHoles: ${ends.length}/18.\nShots: ${totalShots} vs par ${totalPar} (${totalShots - totalPar > 0 ? '+' : ''}${totalShots - totalPar}).\n\nPer-hole detail:\n${tableLines}\n\nYou are EAGLE. Write a tight 4-paragraph coach note for Boss:\n1. Highlights (2-3 best moments).\n2. Patterns: club tendencies, where shots leaked.\n3. Course management: decisions to revisit.\n4. ONE concrete focus for next round.\nGeordie, brief, useful. No preface.`;
+    const txt = await askClaude(EAGLE_SYSTEM, prompt, 700);
+    return txt;
+  } catch (e) { return null; }
+};
+$('btn-export').addEventListener('click', async () => {
+  toast('exporting · running AI coach…', '#22c55e');
+  const coach = await postRoundCoach();
+  let md = exportRound();
+  if (coach) {
+    md = `# Round · ${currentCourse()?.name || 'unknown'} · ${new Date(state.roundStartTs || Date.now()).toISOString().slice(0, 10)}\n\n## Eagle's post-round read\n\n${coach}\n\n---\n\n` + md.replace(/^# Round[^\n]*\n+/, '');
+  }
+  try { await navigator.clipboard.writeText(md); toast('copied · markdown ready', '#22c55e'); } catch (_) {}
+  const blob = new Blob([md], { type: 'text/markdown' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = `kam-caddy-round-${Date.now()}.md`; a.click();
+  feedAdd('shot', 'round exported · markdown' + (coach ? ' · with AI coach' : ''));
+});
+$('btn-reset').addEventListener('click', () => {
+  if (!confirm('Reset the round? Wipes feed, shots, scorecard. Keys, courses, MY BAG kept.')) return;
+  const keep = { a: localStorage.getItem('caddy.anthropic.key'), x: localStorage.getItem('caddy.elevenlabs.key'), o: localStorage.getItem('caddy.owm.key'), bag: state.bag, courses: state.courses, currentCourseId: state.currentCourseId };
+  state = { ...blankState(), bag: keep.bag, courses: keep.courses, currentCourseId: keep.currentCourseId };
+  localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+  if (keep.a) localStorage.setItem('caddy.anthropic.key', keep.a);
+  if (keep.x) localStorage.setItem('caddy.elevenlabs.key', keep.x);
+  if (keep.o) localStorage.setItem('caddy.owm.key', keep.o);
+  releaseWakeLock(); location.reload();
+});
+
+// Boot
+setMode(state.mode || 'course');
+renderFeed(); renderAnalysis(); renderScorecard();
+renderCoursePanel(); buildClubGrid('course-clubs');
+renderMapKeyStatus();
+if (state.hole) {
+  $('chip-hole').textContent     = state.hole.n;
+  $('chip-hole-sub').textContent = `PAR ${state.hole.par} · ${state.hole.name}`;
+  if (state.distM != null) { $('chip-dist').textContent = Math.round(state.distM) + 'm'; $('chip-dist-sub').textContent = Math.round(state.distM * 1.094) + ' yds'; }
+  renderIntel(state.hole, state.distM != null ? Math.round(state.distM) : null);
+  stageFocusHole(state.hole);
+}
+if (state.wind && state.wind.speedMph != null) { $('chip-wind').innerHTML = `${Math.round(state.wind.speedMph)}<span style="font-size:10px;">mph</span>`; $('chip-wind-sub').textContent = compassFromDeg(state.wind.deg); }
+if (state.selectedClubId) refreshClubGridStates();
+
+toast('KAM CADDY · Beedles pre-mapped · ⚙ KEYS → ⛳ BAG → ▸ START ROUND', '#22c55e');
+
+})();
+</script>
+</body>
+</html>
