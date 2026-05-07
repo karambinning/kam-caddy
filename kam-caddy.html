@@ -900,6 +900,46 @@
     max-height: 200px; overflow-y: auto;
   }
   .garden-targets.empty { color: var(--dim); font-style: italic; font-size: 10px; }
+  /* Structured target tiles · tap to log a make per target */
+  .garden-target-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(82px, 1fr));
+    gap: 6px; padding: 0 12px 10px;
+  }
+  .g-target {
+    background: var(--bg-3); border: 1.5px solid var(--ask); color: var(--text);
+    padding: 8px 6px;
+    font-family: inherit;
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    cursor: pointer;
+    transition: background .12s;
+  }
+  .g-target:active { background: var(--ask); color: var(--bg); transform: scale(0.96); }
+  .g-target .gt-n { font-size: 18px; font-weight: 700; color: var(--ask); text-shadow: 0 0 5px var(--ask); }
+  .g-target:active .gt-n { color: var(--bg); text-shadow: none; }
+  .g-target .gt-type { font-size: 10px; font-weight: 700; letter-spacing: 1px; }
+  .g-target .gt-dist { font-size: 8px; color: var(--dim); letter-spacing: 0.5px; text-align: center; line-height: 1.2; }
+  .g-target:active .gt-dist { color: rgba(7,14,28,0.7); }
+  .garden-layout-line {
+    padding: 6px 12px 8px;
+    font-size: 10px; color: var(--ask);
+    font-style: italic;
+    text-shadow: 0 0 4px rgba(45,212,191,0.4);
+    border-top: 1px dashed var(--bg-line);
+  }
+  .garden-scan-progress {
+    position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 7;
+    padding: 10px 16px;
+    background: rgba(4,8,15,0.85);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    border: 1px solid var(--ask);
+    color: var(--ask);
+    font-size: 11px; letter-spacing: 3px; font-weight: 700;
+    text-shadow: 0 0 6px var(--ask);
+    display: none;
+  }
+  .garden-viewport.scanning .garden-scan-progress { display: block; }
   .garden-meta {
     padding: 6px 12px 0;
     font-size: 9px; letter-spacing: 1.5px; color: var(--dim);
@@ -1609,6 +1649,7 @@
       <div class="garden-viewport" id="garden-viewport">
         <video id="garden-video" autoplay playsinline muted></video>
         <div class="garden-scan-overlay"></div>
+        <div class="garden-scan-progress" id="garden-scan-progress">SCANNING…</div>
         <button class="garden-cam-toggle" id="btn-garden-stop">✕ STOP CAM</button>
         <div class="garden-cta">
           <div>📷 LIVE VISION</div>
@@ -1627,13 +1668,18 @@
       <div class="controls full" style="margin-top:10px;">
         <button class="ctl ask" id="btn-garden-scan">◇ SCAN GARDEN · IDENTIFY TARGETS</button>
       </div>
-      <div class="garden-targets empty" id="garden-targets">scan garden to identify chip targets · Eagle reads the layout aloud through your glasses</div>
+      <div class="garden-target-grid" id="garden-target-grid"></div>
+      <div class="garden-layout-line" id="garden-layout-line" style="display:none;"></div>
+      <div class="garden-targets empty" id="garden-targets">scan the garden to identify chip targets · Eagle reads the layout aloud through your glasses</div>
       <div class="controls full">
-        <button class="ctl" id="btn-garden-chip">▸ CHIP TAKEN · AUTO-SCORE (10s)</button>
+        <button class="ctl" id="btn-garden-chip">▸ CHIP TAKEN · AUTO-SCORE (8s)</button>
       </div>
       <div class="controls">
         <button class="ctl" id="btn-chip-make">✓ MAKE · manual</button>
         <button class="ctl warn" id="btn-chip-miss">✗ MISS · manual</button>
+      </div>
+      <div class="controls full">
+        <button class="ctl amber" id="btn-garden-reset" style="font-size:9px;">↺ RESET SESSION · clears chip count + targets</button>
       </div>
     </section>
   </div>
@@ -3805,29 +3851,53 @@ const scanGarden = async () => {
   if (!localStorage.getItem('caddy.anthropic.key')) { toast('add Anthropic key in ⚙ KEYS', '#f59e0b'); return; }
   $('garden-status').textContent = 'scanning · pan slowly across targets';
   $('garden-viewport').classList.add('scanning');
+  $('garden-scan-progress').textContent = 'SCANNING 0/5';
   toast('pan phone slowly · 5 frames over ~4s', '#22c55e');
   avThink('eagle', true);
   const video = $('garden-video');
   const frames = [];
   for (let i = 0; i < 5; i++) {
+    $('garden-scan-progress').textContent = `SCANNING ${i + 1}/5`;
     const f = captureFrame(video);
     if (f) frames.push(f);
     await new Promise(r => setTimeout(r, 800));
   }
+  $('garden-scan-progress').textContent = '◐ ANALYSING…';
   $('garden-viewport').classList.remove('scanning');
   if (frames.length === 0) { avThink('eagle', false); toast('no frames captured', '#ef4444'); return; }
   try {
-    const system = `You are EAGLE the strategic golf caddy analysing Boss's chip practice garden. Look at these frames from a slow pan across the garden. Identify all visible targets that Boss might chip into (baskets, bins, buckets, hoops, pots, cones, anything circular or container-shaped). For each: type, approximate distance from camera in metres (estimate by apparent size), relative position (left / centre / right · near / mid / far). Maximum 5 targets. Then 1-sentence layout read for chip practice strategy. Geordie tone, brief, no preface.`;
-    const text = `${frames.length} frames from a slow pan across Boss's garden. Identify chip practice targets, distances, positions. End with one-line layout read.`;
+    const system = `You are EAGLE the strategic golf caddy analysing Boss's chip practice garden. Look at these frames from a slow pan across the garden. Identify all visible targets that Boss might chip into (baskets, bins, buckets, hoops, pots, cones, anything circular or container-shaped).
+
+Format your reply EXACTLY:
+TARGET 1 · TYPE · DISTANCE_M · POSITION
+TARGET 2 · TYPE · DISTANCE_M · POSITION
+...
+LAYOUT: <one-sentence Geordie read of the layout for chip practice strategy>
+
+Max 5 targets. TYPE in CAPS (BIN, BASKET, POT, BUCKET, HOOP, CONE etc). DISTANCE_M is a single number in metres (no "m"). POSITION is short (e.g. "centre-left near", "back centre", "right far"). No preface.`;
+    const text = `${frames.length} frames from a slow pan across Boss's garden. Reply in the exact format above.`;
     const result = await askClaudeVision(system, text, frames, 500);
     avThink('eagle', false);
-    state.garden.layout = result; persist();
-    $('garden-targets').textContent = result;
-    $('garden-targets').classList.remove('empty');
-    $('garden-status').textContent = 'garden scanned · ready to chip';
-    feedAdd('eagle', '[GARDEN SCAN] ' + result);
-    const summary = result.split('\n').filter(Boolean).slice(0, 3).join(' · ').slice(0, 280);
-    speakEagleRaw(summary);
+    // Parse structured target lines
+    const targets = []; let layout = '';
+    result.split('\n').forEach(line => {
+      const t = line.match(/^TARGET\s*(\d+)\s*[·\-:]\s*(.+?)\s*[·\-:]\s*([\d.]+)\s*m?\s*[·\-:]\s*(.+)$/i);
+      if (t) targets.push({ n: +t[1], type: t[2].trim(), distM: parseFloat(t[3]), pos: t[4].trim() });
+      const l = line.match(/^LAYOUT\s*[:·]\s*(.+)$/i);
+      if (l) layout = l[1].trim();
+    });
+    state.garden.layout = result;
+    state.garden.targets = targets;
+    state.garden.layoutLine = layout;
+    persist();
+    renderGardenTargets();
+    $('garden-targets').classList.add('hidden');
+    $('garden-status').textContent = targets.length ? `${targets.length} targets · ready to chip` : 'garden scanned · ready to chip';
+    feedAdd('eagle', `[GARDEN SCAN] ${targets.length} target${targets.length === 1 ? '' : 's'}` + (layout ? ` · ${layout}` : ''));
+    const voice = targets.length
+      ? `${targets.length} ${targets.length === 1 ? 'target' : 'targets'} mapped. ` + targets.slice(0, 4).map(t => `${t.type.toLowerCase()} at ${Math.round(t.distM)} metres ${t.pos}`).join(', ') + (layout ? '. ' + layout : '')
+      : (layout || result.split('\n')[0] || 'Garden scanned.');
+    speakEagleRaw(voice.slice(0, 300));
   } catch (e) {
     avThink('eagle', false);
     $('garden-viewport').classList.remove('scanning');
@@ -3837,6 +3907,41 @@ const scanGarden = async () => {
 };
 $('btn-garden-scan').addEventListener('click', scanGarden);
 
+// Render parsed garden targets as tappable tiles · tap to log a make per target
+const renderGardenTargets = () => {
+  const grid = $('garden-target-grid');
+  const layoutLine = $('garden-layout-line');
+  const targets = state.garden.targets || [];
+  if (!targets.length) {
+    grid.innerHTML = '';
+    layoutLine.style.display = 'none';
+    return;
+  }
+  grid.innerHTML = targets.map(t => `
+    <button class="g-target" data-tn="${t.n}">
+      <span class="gt-n">${t.n}</span>
+      <span class="gt-type">${escapeHtml(t.type)}</span>
+      <span class="gt-dist">${Math.round(t.distM)}m · ${escapeHtml(t.pos)}</span>
+    </button>
+  `).join('');
+  grid.querySelectorAll('.g-target').forEach(btn => btn.addEventListener('click', () => {
+    const n = +btn.dataset.tn;
+    const t = targets.find(x => x.n === n);
+    if (!t) return;
+    state.garden.make++; updateGarden();
+    feedAdd('birdie', `[MADE · TARGET ${n} ${t.type}] tap-logged`);
+    speakBirdieRaw(`Made on the ${t.type.toLowerCase()} at ${Math.round(t.distM)} metres. Trust that strike.`);
+    // Tap-feedback animation
+    btn.style.transition = 'background .2s, transform .2s';
+    btn.style.background = 'var(--ask)'; btn.style.color = 'var(--bg)'; btn.style.transform = 'scale(0.96)';
+    setTimeout(() => { btn.style.background = ''; btn.style.color = ''; btn.style.transform = ''; }, 220);
+  }));
+  if (state.garden.layoutLine) {
+    layoutLine.textContent = '◇ ' + state.garden.layoutLine;
+    layoutLine.style.display = 'block';
+  } else layoutLine.style.display = 'none';
+};
+
 const armChipAI = async () => {
   if (!gardenStream) { toast('start camera first', '#f59e0b'); startGardenCamera(); return; }
   if (chipArmed) return;
@@ -3845,18 +3950,27 @@ const armChipAI = async () => {
     return;
   }
   chipArmed = true;
-  $('btn-garden-chip').textContent = '◉ ARMED · CHIP NOW';
   $('btn-garden-chip').classList.add('armed');
-  feedAdd('shot', 'chip armed · 10s vision capture');
+  feedAdd('shot', 'chip armed · 8s vision capture');
   playChime('arm');
   const video = $('garden-video');
   const frames = [];
-  // 6 frames over ~8 seconds — enough to capture flight + landing
+  // Live countdown · 8 seconds, capturing 6 frames evenly
+  const startMs = Date.now();
+  const totalMs = 8000;
+  const tick = setInterval(() => {
+    if (!chipArmed) { clearInterval(tick); return; }
+    const remaining = Math.max(0, Math.ceil((totalMs - (Date.now() - startMs)) / 1000));
+    if (remaining > 0) $('btn-garden-chip').textContent = `◉ CHIP NOW · ${remaining}s`;
+    else { $('btn-garden-chip').textContent = '◐ ANALYSING…'; clearInterval(tick); }
+  }, 200);
+  $('btn-garden-chip').textContent = `◉ CHIP NOW · 8s`;
   for (let i = 0; i < 6; i++) {
     const f = captureFrame(video);
     if (f) frames.push(f);
     await new Promise(r => setTimeout(r, 1300));
   }
+  clearInterval(tick);
   $('btn-garden-chip').textContent = '◐ ANALYSING…';
   avThink('birdie', true);
   try {
@@ -3891,6 +4005,28 @@ const armChipAI = async () => {
   }
 };
 $('btn-garden-chip').addEventListener('click', armChipAI);
+
+// Reset session · wipes chip count + scanned targets · keeps the camera live
+$('btn-garden-reset').addEventListener('click', () => {
+  if (!confirm('Reset garden session? Wipes chip count + scanned targets. Camera stays live.')) return;
+  state.garden = { make: 0, miss: 0 };
+  state.garden.targets = []; state.garden.layout = ''; state.garden.layoutLine = '';
+  persist();
+  updateGarden();
+  renderGardenTargets();
+  $('garden-targets').classList.remove('hidden');
+  $('garden-targets').textContent = 'scan the garden to identify chip targets · Eagle reads the layout aloud through your glasses';
+  $('garden-targets').classList.add('empty');
+  $('garden-status').textContent = gardenStream ? 'camera live · scan or chip' : 'camera off · tap CONNECT';
+  toast('garden session reset', '#22c55e');
+});
+
+// Boot · re-render any persisted garden targets
+renderGardenTargets();
+if (state.garden.layoutLine) {
+  $('garden-targets').classList.add('hidden');
+  $('garden-status').textContent = `${(state.garden.targets || []).length} targets · ready to chip`;
+}
 $('btn-putt-make').addEventListener('click', () => { state.greenPutts++; $('p-putts').textContent = state.greenPutts; speakBirdieRaw('In. Pure roll.'); persist(); });
 $('btn-putt-miss').addEventListener('click', () => { state.greenPutts++; $('p-putts').textContent = state.greenPutts; speakBirdieRaw('Read the line, not just the speed.'); persist(); });
 
