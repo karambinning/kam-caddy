@@ -36,16 +36,20 @@
   * { box-sizing: border-box; margin: 0; padding: 0;
       -webkit-tap-highlight-color: transparent;
       user-select: none; -webkit-user-select: none; }
-  html, body { overscroll-behavior: contain; -webkit-font-smoothing: antialiased; }
-  html { height: 100dvh; }
-  /* Anchored to viewport edges → iOS PWA fills the screen, no white gap below */
+  html, body { margin: 0; padding: 0; overscroll-behavior: contain; -webkit-font-smoothing: antialiased; }
+  html { height: 100%; }
+  /* iOS standalone PWA: 100dvh = exact visible viewport (no toolbar fight, no fixed-position bugs).
+     max() guards against env() returning 0 in some standalone modes. */
   body {
     background: var(--bg); color: var(--text);
     font-family: 'IBM Plex Mono', 'SF Mono', Menlo, monospace;
     font-size: 14px; line-height: 1.4;
-    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
-    display: flex; flex-direction: column; overflow: hidden;
+    height: 100vh;
+    height: 100dvh;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: max(env(safe-area-inset-bottom), 12px);
     box-sizing: border-box;
   }
   button { font-family: inherit; cursor: pointer; border: none;
@@ -291,7 +295,7 @@
     overflow-y: auto; overflow-x: hidden;
     overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
   }
-  .mode { padding-bottom: calc(120px + env(safe-area-inset-bottom)); }
+  .mode { padding-bottom: 40px; }
   .mode.hidden { display: none; }
 
   .panel {
@@ -1037,7 +1041,7 @@
     .chip { padding: 5px 3px 6px; min-width: 0; }
     .chip-value { font-size: 12px; line-height: 1.1; }
     .chip-label, .chip-sub { font-size: 6.5px; letter-spacing: 0.8px; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .mode { padding-bottom: calc(100px + env(safe-area-inset-bottom)); }
+    .mode { padding-bottom: 32px; }
     #map { height: clamp(320px, 50vh, 480px); }
 
     .cad-av { font-size: 11px; }
@@ -3057,6 +3061,20 @@ const updatePos = (pos) => {
   let nearest = null, minD = Infinity;
   pinnedHoles.forEach(h => { const d = haversineM(state.pos.lat, state.pos.lon, h.green.lat, h.green.lon); if (d < minD) { minD = d; nearest = h; } });
   if (!nearest) return;
+  // Hole detection sanity: only auto-assign if within ~300m of the green.
+  // If you're miles away (e.g. testing at home), don't claim you're "at hole X".
+  const ON_HOLE_THRESHOLD_M = 300;
+  if (minD > ON_HOLE_THRESHOLD_M) {
+    // Off course — clear chips, hint distance to course
+    $('chip-hole').textContent     = '—';
+    $('chip-hole-sub').textContent = `off course · ${Math.round(minD)}m to nearest green (H${nearest.n})`;
+    $('chip-dist').textContent     = '—';
+    $('chip-dist-sub').textContent = 'walk to a tee';
+    state.distM = null;
+    // Keep state.hole as whatever was set manually (preview / hole-nav). Don't overwrite.
+    persist();
+    return;
+  }
   state.distM = minD;
   $('chip-dist').textContent     = Math.round(minD) + 'm';
   $('chip-dist-sub').textContent = Math.round(minD * 1.094) + ' yds';
@@ -3173,14 +3191,26 @@ const renderIntel = (h, d) => {
 const previewHole = (n) => {
   const h = holeByN(n); if (!h) return;
   state.previewHole = h.n;
+  // Make the previewed hole the ACTIVE hole too — Eagle/Birdie context follows it.
+  // When you're actually on the course, GPS will override this in updatePos().
+  state.hole = h;
+  state.holeStartTs = state.holeStartTs || Date.now();
+  $('chip-hole').textContent     = h.n;
+  $('chip-hole-sub').textContent = `PAR ${h.par} · ${h.name}`;
   let d = null;
   if (state.pos && h.green) d = Math.round(haversineM(state.pos.lat, state.pos.lon, h.green.lat, h.green.lon));
-  renderIntel(h, d); feedAdd('hole', `preview · H${h.n} ${h.name}`);
+  if (d != null) {
+    state.distM = d;
+    $('chip-dist').textContent     = d + 'm';
+    $('chip-dist-sub').textContent = Math.round(d * 1.094) + ' yds';
+  }
+  renderIntel(h, d); feedAdd('hole', `H${h.n} ${h.name} · selected`);
   if (h.green) stageFocusHole(h);
-  // Re-render features so the preview hole becomes the focal one (full detail)
   redrawHoleMarkers();
   focusFocalHole();
   renderMapKeyStatus();
+  refreshClubGridStates();
+  persist();
 };
 $('hole-prev').addEventListener('click', () => { const cur = state.previewHole || state.hole?.n || 1; previewHole(cur === 1 ? 18 : cur - 1); });
 $('hole-next').addEventListener('click', () => { const cur = state.previewHole || state.hole?.n || 0; previewHole(cur === 18 ? 1 : cur + 1); });
@@ -3475,12 +3505,36 @@ $('btn-start').addEventListener('click', () => {
   navigator.geolocation.getCurrentPosition(
     pos => {
       state.roundLive = true; state.roundStartTs = Date.now();
-      requestWakeLock(); updatePos(pos);
-      btn.textContent  = '● ROUND LIVE · GPS LOCKED'; btn.style.background = 'linear-gradient(180deg,#16a34a,#15803d)'; btn.disabled = true;
+      requestWakeLock();
+      // Default the active hole to H1 if none set yet — so off-course testing has a baseline
+      const c = currentCourse();
+      const h1 = c?.holes.find(x => x.n === 1 && x.green) || c?.holes.find(x => x.green);
+      if (h1 && !state.hole) {
+        state.hole = h1;
+        state.holeStartTs = Date.now();
+        $('chip-hole').textContent     = h1.n;
+        $('chip-hole-sub').textContent = `PAR ${h1.par} · ${h1.name}`;
+        renderIntel(h1, null);
+      }
+      updatePos(pos);
+      // Are we actually on the course? (within ~1km of any green)
+      let nearestM = Infinity;
+      (c?.holes || []).forEach(h => {
+        if (!h.green) return;
+        const d = haversineM(pos.coords.latitude, pos.coords.longitude, h.green.lat, h.green.lon);
+        if (d < nearestM) nearestM = d;
+      });
+      const onCourse = nearestM < 1000;
+      btn.textContent  = onCourse ? '● ROUND LIVE · GPS LOCKED' : '● TESTING · OFF COURSE';
+      btn.style.background = 'linear-gradient(180deg,#16a34a,#15803d)'; btn.disabled = true;
       $('hdr-live').classList.add('live'); $('hdr-live').textContent = '● LIVE';
-      feedAdd('gps', `round live · GPS locked at ${state.pos.lat.toFixed(4)}, ${state.pos.lon.toFixed(4)}`);
+      feedAdd('gps', `round live · ${onCourse ? `on course · ${state.pos.lat.toFixed(4)}, ${state.pos.lon.toFixed(4)}` : `${(nearestM/1000).toFixed(1)}km from course · testing mode · use ◂ PREV / NEXT ▸ to walk holes`}`);
       startGPSWatch(); stageFocusPos();
-      speakEagle('Round live. GPS locked. Walk to your tee. Eagle has the wind, Birdie is on the bag.');
+      if (onCourse) {
+        speakEagle('Round live. GPS locked. Walk to your tee. Eagle has the wind, Birdie is on the bag.');
+      } else {
+        speakEagle(`Testing from off the course. Hole one is loaded. Use the previous and next buttons to walk through holes. Real-time data kicks in when you reach the course.`);
+      }
       persist();
     },
     err => { btn.textContent = '✗ GPS DENIED'; btn.style.background = '#7f1d1d'; feedAdd('gps', 'denied: ' + err.message); toast('GPS denied: ' + err.message, '#ef4444'); },
