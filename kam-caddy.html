@@ -240,6 +240,39 @@
     padding: 0 4px; letter-spacing: 1px;
   }
 
+  /* Multiplayer panel */
+  .panel-mp { border-left-color: var(--ask); } .panel-mp .ph-title { color: var(--ask); text-shadow: 0 0 6px var(--ask); }
+  .mp-code-big {
+    font-size: 28px; letter-spacing: 12px; font-weight: 700;
+    color: var(--ask); text-shadow: 0 0 12px var(--ask);
+    text-align: center; padding: 12px 0 4px;
+  }
+  .mp-current-meta { text-align: center; font-size: 9px; letter-spacing: 1.5px; color: var(--dim); padding-bottom: 8px; }
+  .mp-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 8px 12px; }
+  .mp-actions input {
+    background: var(--bg-3); border: 1px solid var(--bg-line); color: var(--text);
+    padding: 9px 10px; font-family: inherit; font-size: 12px;
+    text-transform: uppercase; letter-spacing: 2px;
+  }
+  .mp-actions input:focus { outline: none; border-color: var(--ask); }
+  .mp-empty { padding: 12px; text-align: center; color: var(--dim); font-size: 10px; letter-spacing: 1.5px; }
+  .mp-roster {
+    border-top: 1px dashed var(--bg-line);
+  }
+  .mp-row {
+    display: grid; grid-template-columns: 1fr 50px 50px 50px;
+    gap: 8px; padding: 8px 12px;
+    border-bottom: 1px dashed var(--bg-line);
+    font-size: 11px; align-items: center;
+  }
+  .mp-row.head { color: var(--dim); font-size: 8px; letter-spacing: 1.5px; }
+  .mp-row .mr-name { font-weight: 700; }
+  .mp-row .mr-name.me { color: var(--green); text-shadow: 0 0 4px var(--green); }
+  .mp-row .mr-num { text-align: right; color: var(--text); }
+  .mp-row .mr-vs.under { color: var(--green); font-weight: 700; }
+  .mp-row .mr-vs.over  { color: var(--warn);  font-weight: 700; }
+  .mp-row .mr-vs.par   { color: var(--eagle); font-weight: 700; }
+
   /* Player profiles · one-device multiplayer */
   .profiles {
     flex-shrink: 0;
@@ -1528,6 +1561,40 @@
       </div>
       <div class="ready-grid" id="ready-grid"></div>
       <div class="ready-summary" id="ready-summary">checking…</div>
+    </section>
+
+    <section class="panel panel-mp" id="panel-mp">
+      <div class="panel-head">
+        <span class="ph-glyph">◈</span>
+        <span class="ph-title">GROUP · LIVE</span>
+        <span class="ph-sub" id="mp-sub">solo · create or join a game</span>
+      </div>
+      <div id="mp-empty" class="mp-empty">
+        <div style="margin-bottom:8px; font-size:11px; letter-spacing:1.5px; color:var(--text);">PLAYING WITH FRIENDS?</div>
+        Boss creates a game · friends paste the code · all four scores sync live · end-of-round group card.
+      </div>
+      <div id="mp-active" style="display:none;">
+        <div class="mp-current-meta" id="mp-current-meta">SHARE THIS CODE WITH YOUR GROUP</div>
+        <div class="mp-code-big" id="mp-code-big">— — — —</div>
+        <div class="mp-roster" id="mp-roster"></div>
+      </div>
+      <div class="mp-actions" id="mp-actions">
+        <input id="mp-name" type="text" maxlength="8" placeholder="YOUR NAME">
+        <input id="mp-code" type="text" maxlength="4" placeholder="GAME CODE">
+        <button class="ctl ask" id="btn-mp-create" style="font-size:10px;">▸ CREATE GAME</button>
+        <button class="ctl" id="btn-mp-join" style="font-size:10px;">↘ JOIN</button>
+      </div>
+      <div class="mp-actions" id="mp-actions-active" style="display:none; grid-template-columns: 1fr 1fr;">
+        <button class="ctl" id="btn-mp-refresh" style="font-size:10px;">↻ REFRESH</button>
+        <button class="ctl warn" id="btn-mp-leave" style="font-size:10px;">✕ LEAVE</button>
+      </div>
+      <div style="padding: 0 12px 10px;">
+        <label style="display:block; font-size:8px; letter-spacing:1.5px; color:var(--dim); margin:4px 0 3px;">SERVER URL · advanced</label>
+        <input id="mp-server" type="text" autocomplete="off" placeholder="https://harvest-reflections-gallery-protocols.trycloudflare.com" style="width:100%; padding:7px; background:var(--bg-3); border:1px solid var(--bg-line); color:var(--text); font-family:inherit; font-size:10px; letter-spacing:0.5px;">
+        <div style="font-size:9px; color:var(--dim); margin-top:5px; line-height:1.55;">
+          Friends just open <b style="color:var(--ask);">karambinning.github.io/kam-caddy/</b> on any phone, paste the 4-char code, type their name, hit JOIN. They keep their own bag · their own scorecard · their shots show on Boss's roster live.
+        </div>
+      </div>
     </section>
 
     <section class="panel panel-course">
@@ -3761,6 +3828,10 @@ const commitShot = (source) => {
   });
   speakBirdie(`Shot logged. ${state.shotsByHole[state.hole.n]} on hole ${state.hole.n}.`);
   renderAnalysis(); persist();
+  // Multiplayer: broadcast shot to group server (silent if offline / no game)
+  if (typeof mpPushShot === 'function') {
+    mpPushShot({ hole: state.hole.n, club: club?.name || null, dist: state.distM != null ? Math.round(state.distM) : null });
+  }
 };
 $('btn-shot').addEventListener('click', () => { if (!state.hole) { toast('no hole detected', '#f59e0b'); return; } commitShot('manual'); });
 
@@ -3774,6 +3845,10 @@ $('btn-end-hole').addEventListener('click', () => {
   state.holeEnds.push({ n: endedHole.n, par: endedHole.par, shots, diff, ts: Date.now(), clubs: clubsUsed });
   // Update profile bar with new score
   if (typeof renderProfiles === 'function') renderProfiles();
+  // Multiplayer: broadcast hole end to group server (silent if offline / no game)
+  if (typeof mpPushHoleEnd === 'function') {
+    mpPushHoleEnd({ hole: endedHole.n, par: endedHole.par, shots });
+  }
   if (state.holeStartTs) { state.holeTimings.push((Date.now() - state.holeStartTs) / 60000); state.holeStartTs = Date.now(); }
   const diffTxt = diff === 0 ? 'level par' : (diff < 0 ? Math.abs(diff)+' under' : '+'+diff+' over');
   feedAdd('hole', `H${endedHole.n} ended · ${shots} shots · ${diffTxt}`);
@@ -4555,6 +4630,52 @@ const renderMomentCard = (coachText) => {
       yCursor += 38;
     }
   }
+  // Group leaderboard · when multiplayer is active and we have other players
+  try {
+    if (typeof mp !== 'undefined' && mp.code && mp.roster && Object.keys(mp.roster).length > 0) {
+      const pids = Object.keys(mp.roster);
+      const rows = pids.map(pid => {
+        const pl = mp.roster[pid];
+        const ends2 = (pl.holeEnds || []).slice();
+        const tot = ends2.reduce((a, e) => a + e.shots, 0);
+        const par2 = ends2.reduce((a, e) => a + e.par, 0);
+        const dpv = ends2.length ? tot - par2 : null;
+        return { pid, name: pl.name, holes: ends2.length, total: tot, dp: dpv, isMe: pid === mp.playerId };
+      }).sort((a, b) => (b.holes - a.holes) || (a.total - b.total));
+      const groupY = Math.max(yCursor + 30, 1620);
+      ctx.fillStyle = '#ec4899';
+      ctx.font = '700 36px "IBM Plex Mono", monospace';
+      ctx.shadowColor = '#ec4899'; ctx.shadowBlur = 18;
+      ctx.fillText('GROUP · ' + mp.code, 80, groupY);
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#64748b';
+      ctx.font = '20px "IBM Plex Mono", monospace';
+      ctx.fillText('PLAYER', 80, groupY + 38);
+      ctx.fillText('HOLES', 560, groupY + 38);
+      ctx.fillText('SHOTS', 720, groupY + 38);
+      ctx.fillText('+/-', 900, groupY + 38);
+      const maxRows = Math.min(4, rows.length);
+      for (let i = 0; i < maxRows; i++) {
+        const r = rows[i];
+        const y = groupY + 78 + i * 44;
+        ctx.fillStyle = r.isMe ? '#22c55e' : '#e5e7eb';
+        ctx.font = '700 26px "IBM Plex Mono", monospace';
+        if (r.isMe) { ctx.shadowColor = '#22c55e'; ctx.shadowBlur = 10; }
+        ctx.fillText((r.name || '').slice(0, 12) + (r.isMe ? ' · YOU' : ''), 80, y);
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#e5e7eb';
+        ctx.font = '24px "IBM Plex Mono", monospace';
+        ctx.fillText(r.holes + '/18', 560, y);
+        ctx.fillText(String(r.total), 720, y);
+        if (r.dp == null) {
+          ctx.fillStyle = '#64748b'; ctx.fillText('—', 900, y);
+        } else {
+          ctx.fillStyle = r.dp < 0 ? '#22c55e' : (r.dp > 0 ? '#ef4444' : '#fbbf24');
+          ctx.fillText(r.dp === 0 ? 'E' : (r.dp > 0 ? '+' + r.dp : String(r.dp)), 900, y);
+        }
+      }
+    }
+  } catch (e) {}
   // Footer
   ctx.fillStyle = '#22c55e';
   ctx.font = '28px "IBM Plex Mono", monospace';
@@ -4841,6 +4962,207 @@ else if (currentCourse()?.holes.find(h => h.green)) {
     setTimeout(() => { fetchWindThenEagle(true); renderIntel(h1, null); }, 600);
   }
 }
+// ── Multiplayer · live network sync (4 friends, 4 phones) ───────────
+// Boss's Mac runs a tiny Python server exposed via Cloudflare Tunnel.
+// Friends open karambinning.github.io/kam-caddy/, paste the 4-char code,
+// every shot + every hole-end gets POSTed to the server and broadcast to
+// the rest of the group. Roster + final group card render from the
+// server's event log so all four phones agree on what happened.
+const MP_DEFAULT_SERVER = 'https://harvest-reflections-gallery-protocols.trycloudflare.com';
+const mp = {
+  server:   localStorage.getItem('caddy.mp.server') || MP_DEFAULT_SERVER,
+  code:     localStorage.getItem('caddy.mp.code')   || null,
+  name:     localStorage.getItem('caddy.mp.name')   || null,
+  playerId: localStorage.getItem('caddy.mp.pid')    || null,
+  since:    0,
+  pollTimer: null,
+  roster: {},      // pid -> { name, holeEnds: [{n,par,shots,diff}], lastShot }
+  lastError: null,
+};
+const mpSave = () => {
+  if (mp.server) localStorage.setItem('caddy.mp.server', mp.server); else localStorage.removeItem('caddy.mp.server');
+  if (mp.code)   localStorage.setItem('caddy.mp.code',   mp.code);   else localStorage.removeItem('caddy.mp.code');
+  if (mp.name)   localStorage.setItem('caddy.mp.name',   mp.name);   else localStorage.removeItem('caddy.mp.name');
+  if (mp.playerId) localStorage.setItem('caddy.mp.pid', mp.playerId); else localStorage.removeItem('caddy.mp.pid');
+};
+const mpUrl = (path) => (mp.server || MP_DEFAULT_SERVER).replace(/\/+$/, '') + path;
+const mpFetch = async (path, opts) => {
+  const url = mpUrl(path);
+  const res = await fetch(url, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts || {}));
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
+};
+const mpRandPid = () => 'p' + Math.random().toString(36).slice(2, 8);
+const mpCreateGame = async () => {
+  const name = ($('mp-name').value.trim() || (state.players?.[state.activePlayerId]?.name) || 'BOSS').toUpperCase().slice(0, 8);
+  if (!name) { toast('enter your name first', '#f59e0b'); return; }
+  if (!mp.playerId) mp.playerId = mpRandPid();
+  try {
+    toast('▸ creating game…', '#22c55e');
+    const r = await mpFetch('/games', { method: 'POST', body: JSON.stringify({ host: { id: mp.playerId, name } }) });
+    mp.code = r.code; mp.name = name;
+    mpSave(); mpStartPolling(true);
+    toast('GAME CREATED · ' + r.code, '#22c55e');
+    feedAdd('hole', `◈ group game created · ${r.code}`);
+    speakEagle(`Group game live. Code ${r.code.split('').join(' ')}.`);
+  } catch (e) {
+    toast('create failed · ' + e.message, '#ef4444');
+    mp.lastError = e.message; renderMp();
+  }
+};
+const mpJoinGame = async () => {
+  const code = ($('mp-code').value.trim() || '').toUpperCase().slice(0, 4);
+  const name = ($('mp-name').value.trim() || '').toUpperCase().slice(0, 8);
+  if (!code || code.length !== 4) { toast('enter 4-char code', '#f59e0b'); return; }
+  if (!name) { toast('enter your name', '#f59e0b'); return; }
+  if (!mp.playerId) mp.playerId = mpRandPid();
+  try {
+    toast('↘ joining…', '#22c55e');
+    await mpFetch('/games/' + code + '/join', { method: 'POST', body: JSON.stringify({ id: mp.playerId, name }) });
+    mp.code = code; mp.name = name;
+    mpSave(); mpStartPolling(true);
+    toast('JOINED · ' + code, '#22c55e');
+    feedAdd('hole', `◈ joined group ${code} as ${name}`);
+    speakEagle(`Joined the group, ${name}.`);
+  } catch (e) {
+    toast('join failed · ' + e.message, '#ef4444');
+    mp.lastError = e.message; renderMp();
+  }
+};
+const mpLeave = () => {
+  if (mp.pollTimer) { clearInterval(mp.pollTimer); mp.pollTimer = null; }
+  feedAdd('hole', `◈ left group ${mp.code || ''}`);
+  mp.code = null; mp.since = 0; mp.roster = {}; mpSave();
+  renderMp();
+  toast('LEFT GROUP', '#ef4444');
+};
+const mpStartPolling = (immediate) => {
+  if (mp.pollTimer) { clearInterval(mp.pollTimer); mp.pollTimer = null; }
+  mp.since = 0; mp.roster = {};
+  const tick = async () => {
+    if (!mp.code) return;
+    try {
+      const r = await mpFetch('/games/' + mp.code + '/events?since=' + mp.since);
+      if (r.players) {
+        for (const p of r.players) {
+          if (!mp.roster[p.id]) mp.roster[p.id] = { name: p.name, holeEnds: [], lastShot: null };
+          else mp.roster[p.id].name = p.name;
+        }
+      }
+      if (r.events && r.events.length) {
+        for (const ev of r.events) {
+          mp.since = Math.max(mp.since, ev.ts || 0);
+          const pl = mp.roster[ev.pid] || (mp.roster[ev.pid] = { name: ev.name || ev.pid, holeEnds: [], lastShot: null });
+          if (ev.name) pl.name = ev.name;
+          if (ev.kind === 'shot') {
+            pl.lastShot = { hole: ev.hole, club: ev.club, dist: ev.dist, ts: ev.ts };
+          } else if (ev.kind === 'hole-end') {
+            const idx = pl.holeEnds.findIndex(h => h.n === ev.hole);
+            const row = { n: ev.hole, par: ev.par, shots: ev.shots, diff: (ev.shots - ev.par) };
+            if (idx >= 0) pl.holeEnds[idx] = row; else pl.holeEnds.push(row);
+            if (ev.pid !== mp.playerId) {
+              const dt = row.diff === 0 ? 'level par' : (row.diff < 0 ? Math.abs(row.diff) + ' under' : '+' + row.diff);
+              feedAdd('hole', `▾ ${pl.name} · H${ev.hole} · ${ev.shots} shots · ${dt}`);
+            }
+          }
+        }
+      }
+      mp.lastError = null;
+    } catch (e) { mp.lastError = e.message; }
+    renderMp();
+  };
+  if (immediate) tick();
+  mp.pollTimer = setInterval(tick, 4000);
+};
+const mpPushShot = async (info) => {
+  if (!mp.code || !mp.playerId) return;
+  try {
+    await mpFetch('/games/' + mp.code + '/event', { method: 'POST', body: JSON.stringify({
+      pid: mp.playerId, name: mp.name,
+      kind: 'shot', hole: info.hole, club: info.club, dist: info.dist
+    }) });
+  } catch (e) { /* swallow · phone offline is fine, server has nothing yet */ }
+};
+const mpPushHoleEnd = async (info) => {
+  if (!mp.code || !mp.playerId) return;
+  try {
+    await mpFetch('/games/' + mp.code + '/event', { method: 'POST', body: JSON.stringify({
+      pid: mp.playerId, name: mp.name,
+      kind: 'hole-end', hole: info.hole, par: info.par, shots: info.shots
+    }) });
+  } catch (e) {}
+};
+const renderMp = () => {
+  const empty = $('mp-empty'), active = $('mp-active');
+  const acts = $('mp-actions'), actsActive = $('mp-actions-active');
+  const sub = $('mp-sub');
+  if ($('mp-server')) { $('mp-server').value = mp.server || ''; }
+  if (!mp.code) {
+    if (empty) empty.style.display = 'block';
+    if (active) active.style.display = 'none';
+    if (acts) acts.style.display = 'grid';
+    if (actsActive) actsActive.style.display = 'none';
+    if (sub) sub.textContent = mp.lastError ? ('error · ' + mp.lastError) : 'solo · create or join a game';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  if (active) active.style.display = 'block';
+  if (acts) acts.style.display = 'none';
+  if (actsActive) actsActive.style.display = 'grid';
+  $('mp-code-big').textContent = mp.code.split('').join(' ');
+  const pids = Object.keys(mp.roster);
+  $('mp-current-meta').textContent = pids.length
+    ? `${pids.length} IN · YOUR CODE: ${mp.code}`
+    : `WAITING FOR FRIENDS · CODE: ${mp.code}`;
+  if (sub) sub.textContent = mp.lastError ? ('sync error · ' + mp.lastError) : `live · ${pids.length} players`;
+  // Roster
+  const rost = $('mp-roster');
+  if (!pids.length) {
+    rost.innerHTML = '<div class="mp-empty">no other players yet · share the code</div>';
+    return;
+  }
+  // Sort by total strokes ascending; "me" first when tied
+  const rows = pids.map(pid => {
+    const pl = mp.roster[pid];
+    const ends = pl.holeEnds.slice().sort((a, b) => a.n - b.n);
+    const total = ends.reduce((a, e) => a + e.shots, 0);
+    const par = ends.reduce((a, e) => a + e.par, 0);
+    const dp = ends.length ? total - par : null;
+    const last = pl.lastShot ? `H${pl.lastShot.hole} · ${pl.lastShot.club || '—'}` : '—';
+    return { pid, name: pl.name, holes: ends.length, total, dp, last, isMe: pid === mp.playerId };
+  }).sort((a, b) => (b.holes - a.holes) || (a.total - b.total));
+  let html = '<div class="mp-row head"><span>PLAYER</span><span>HOLES</span><span>SHOTS</span><span>+/-</span></div>';
+  for (const r of rows) {
+    const dpTxt = r.dp == null ? '—' : (r.dp === 0 ? 'E' : (r.dp > 0 ? '+' + r.dp : String(r.dp)));
+    const dpCls = r.dp == null ? '' : (r.dp < 0 ? 'under' : (r.dp > 0 ? 'over' : 'par'));
+    html += `<div class="mp-row" title="${escapeHtml(r.last)}">
+      <span class="mr-name ${r.isMe ? 'me' : ''}">${escapeHtml(r.name)}${r.isMe ? ' · YOU' : ''}</span>
+      <span class="mr-num">${r.holes}/18</span>
+      <span class="mr-num">${r.total}</span>
+      <span class="mr-num mr-vs ${dpCls}">${dpTxt}</span>
+    </div>`;
+  }
+  rost.innerHTML = html;
+};
+// Wire UI
+const $mpName = $('mp-name'), $mpCode = $('mp-code'), $mpServer = $('mp-server');
+if ($mpName && mp.name) $mpName.value = mp.name;
+if ($mpCode && mp.code) $mpCode.value = mp.code;
+if ($mpServer) $mpServer.value = mp.server || MP_DEFAULT_SERVER;
+$('btn-mp-create').addEventListener('click', mpCreateGame);
+$('btn-mp-join').addEventListener('click', mpJoinGame);
+$('btn-mp-leave').addEventListener('click', mpLeave);
+$('btn-mp-refresh').addEventListener('click', () => { mp.since = 0; mp.roster = {}; mpStartPolling(true); toast('↻ refreshing…', '#22c55e'); });
+if ($mpServer) {
+  $mpServer.addEventListener('change', () => { mp.server = ($mpServer.value || '').trim() || MP_DEFAULT_SERVER; mpSave(); toast('server set', '#22c55e'); });
+}
+// If we already have a game saved (Boss reopened the app mid-round), rejoin and resume polling
+if (mp.code && mp.name && mp.playerId) {
+  // Re-issue join (idempotent on the server) so the roster knows we're back
+  (async () => { try { await mpFetch('/games/' + mp.code + '/join', { method: 'POST', body: JSON.stringify({ id: mp.playerId, name: mp.name }) }); } catch (e) {} mpStartPolling(true); })();
+}
+renderMp();
+
 renderFeed(); renderAnalysis(); renderScorecard();
 renderCoursePanel(); buildClubGrid('course-clubs');
 renderMapKeyStatus();
